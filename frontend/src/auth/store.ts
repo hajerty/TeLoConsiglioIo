@@ -9,6 +9,7 @@ interface AuthState {
   login: (data: { accessToken: string; refreshToken: string; user: User }) => void;
   logout: () => void;
   setUser: (u: User) => void;
+  setTokens: (data: { accessToken: string; refreshToken: string }) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -21,6 +22,8 @@ export const useAuthStore = create<AuthState>()(
         set({ token: accessToken, refreshToken, user }),
       logout: () => set({ token: null, refreshToken: null, user: null }),
       setUser: (u) => set({ user: u }),
+      setTokens: ({ accessToken, refreshToken }) =>
+        set({ token: accessToken, refreshToken }),
     }),
     { name: 'tlc-auth' }
   )

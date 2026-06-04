@@ -276,6 +276,27 @@ Restituisci ESCLUSIVAMENTE JSON nella forma:
         return Ok(ToDetail(a));
     }
 
+    [HttpPost("{id:guid}/legal-refs")]
+    public async Task<ActionResult<LegalReferenceDto>> CreateLegalRef(Guid id, [FromBody] CreateLegalRefRequest req)
+    {
+        var uid = GetUserId();
+        var a = await _db.Acts.FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == uid);
+        if (a == null) return NotFound();
+        if (string.IsNullOrWhiteSpace(req.Citation))
+            return BadRequest(new { error = "Citation obbligatoria" });
+
+        var r = new LegalReference
+        {
+            ActId = a.Id,
+            Citation = req.Citation.Trim(),
+            Description = req.Description?.Trim() ?? "",
+            Inserted = false
+        };
+        _db.LegalReferences.Add(r);
+        await _db.SaveChangesAsync();
+        return Ok(new LegalReferenceDto(r.Id, r.Citation, r.Description, r.Inserted, r.ConfirmedAt));
+    }
+
     [HttpDelete("legal-refs/{refId:guid}")]
     public async Task<IActionResult> DeleteRef(Guid refId)
     {

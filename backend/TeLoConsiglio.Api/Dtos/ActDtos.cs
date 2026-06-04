@@ -17,4 +17,6 @@ public record SuggestLegalRefsRequest(string Text);
 public record SuggestedLegalRef(string Citation, string Description);
 public record SuggestLegalRefsResponse(List<SuggestedLegalRef> References);
 
-public record InsertLegalRefsRequest(List<Guid> ReferenceIds, string Mode); // Mode: "appendVisti" | "placeholder"
+public record InsertLegalRefsRequest(List<Guid> ReferenceIds, string Mode); // Mode: "append" | "placeholder"
+
+public record CreateLegalRefRequest([Required] string Citation, string? Description);

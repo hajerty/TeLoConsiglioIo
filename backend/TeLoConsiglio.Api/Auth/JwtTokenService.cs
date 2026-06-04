@@ -60,4 +60,13 @@ public class JwtTokenService
         rng.GetBytes(bytes);
         return Convert.ToBase64String(bytes);
     }
+
+    public static string HashRefreshToken(string token)
+    {
+        using var sha = System.Security.Cryptography.SHA256.Create();
+        var hash = sha.ComputeHash(Encoding.UTF8.GetBytes(token));
+        var sb = new StringBuilder(hash.Length * 2);
+        foreach (var b in hash) sb.Append(b.ToString("x2"));
+        return sb.ToString();
+    }
 }

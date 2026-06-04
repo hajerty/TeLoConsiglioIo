@@ -74,12 +74,36 @@ public class AuthController : ControllerBase
     [HttpPost("refresh")]
     public async Task<ActionResult<AuthResponseDto>> Refresh([FromBody] RefreshDto dto)
     {
-        var rt = await _db.RefreshTokens.Include(r => r.User).FirstOrDefaultAsync(r => r.Token == dto.RefreshToken);
+        if (string.IsNullOrWhiteSpace(dto.RefreshToken))
+            return Unauthorized(new { error = "Refresh token non valido" });
+        var hash = JwtTokenService.HashRefreshToken(dto.RefreshToken);
+        var rt = await _db.RefreshTokens.Include(r => r.User).FirstOrDefaultAsync(r => r.TokenHash == hash);
         if (rt == null || rt.RevokedAt != null || rt.ExpiresAt < DateTime.UtcNow)
             return Unauthorized(new { error = "Refresh token non valido" });
-        rt.RevokedAt = DateTime.UtcNow;
         if (rt.User == null) return Unauthorized();
-        return Ok(await BuildAuthResponse(rt.User));
+
+        // Rotazione: revoca il vecchio token e crea il nuovo (collegandolo per replay-detection).
+        rt.RevokedAt = DateTime.UtcNow;
+        var resp = await BuildAuthResponse(rt.User, replacedTokenToLink: rt);
+        await _db.SaveChangesAsync();
+        return Ok(resp);
+    }
+
+    [Authorize]
+    [HttpPost("logout")]
+    public async Task<IActionResult> Logout([FromBody] RefreshDto? dto)
+    {
+        if (dto != null && !string.IsNullOrWhiteSpace(dto.RefreshToken))
+        {
+            var hash = JwtTokenService.HashRefreshToken(dto.RefreshToken);
+            var rt = await _db.RefreshTokens.FirstOrDefaultAsync(r => r.TokenHash == hash);
+            if (rt != null && rt.RevokedAt == null)
+            {
+                rt.RevokedAt = DateTime.UtcNow;
+                await _db.SaveChangesAsync();
+            }
+        }
+        return NoContent();
     }
 
     [Authorize]
@@ -103,18 +127,22 @@ public class AuthController : ControllerBase
         return NoContent();
     }
 
-    private async Task<AuthResponseDto> BuildAuthResponse(ApplicationUser user)
+    private async Task<AuthResponseDto> BuildAuthResponse(ApplicationUser user, RefreshToken? replacedTokenToLink = null)
     {
         var (token, exp) = await _jwt.CreateAccessTokenAsync(user);
         var rtStr = _jwt.CreateRefreshToken();
         var rt = new RefreshToken
         {
             UserId = user.Id,
-            Token = rtStr,
+            TokenHash = JwtTokenService.HashRefreshToken(rtStr),
             ExpiresAt = DateTime.UtcNow.AddDays(_jwtSettings.RefreshExpirationDays)
         };
         _db.RefreshTokens.Add(rt);
         await _db.SaveChangesAsync();
+        if (replacedTokenToLink != null)
+        {
+            replacedTokenToLink.ReplacedByTokenId = rt.Id;
+        }
         var roles = await _users.GetRolesAsync(user);
         return new AuthResponseDto(token, exp, rtStr,
             new UserDto(user.Id, user.Email ?? "", user.FullName, user.Comune, user.Partito, roles));

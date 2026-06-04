@@ -119,6 +119,6 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             .HasForeignKey(r => r.UserId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        b.Entity<RefreshToken>().HasIndex(r => r.Token).IsUnique();
+        b.Entity<RefreshToken>().HasIndex(r => r.TokenHash).IsUnique();
     }
 }

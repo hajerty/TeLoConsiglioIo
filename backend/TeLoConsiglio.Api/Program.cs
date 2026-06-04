@@ -37,9 +37,29 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(opt =>
     .AddDefaultTokenProviders();
 
 // ----- JWT -----
+const string LegacyDefaultJwtKey = "DevOnly_ChangeMe_TeLoConsiglio_SuperSecret_Key_12345!";
+var rawJwtKey = builder.Configuration["JWT_KEY"] ?? builder.Configuration["Jwt:Key"];
+
+if (string.IsNullOrWhiteSpace(rawJwtKey))
+{
+    if (builder.Environment.IsProduction())
+        throw new InvalidOperationException(
+            "JWT_KEY non configurata. In Production e' obbligatorio impostare la variabile d'ambiente JWT_KEY con almeno 32 byte casuali.");
+    rawJwtKey = LegacyDefaultJwtKey;
+    Console.WriteLine("[WARN] JWT_KEY non impostata: uso chiave di sviluppo. NON usare in produzione.");
+}
+
+if (builder.Environment.IsProduction())
+{
+    if (System.Text.Encoding.UTF8.GetByteCount(rawJwtKey) < 32)
+        throw new InvalidOperationException("JWT_KEY troppo corta: in Production servono almeno 32 byte UTF-8.");
+    if (string.Equals(rawJwtKey, LegacyDefaultJwtKey, StringComparison.Ordinal))
+        throw new InvalidOperationException("JWT_KEY usa il valore di default committato in repo. Impossibile avviare in Production.");
+}
+
 var jwtSettings = new JwtSettings
 {
-    Key = builder.Configuration["JWT_KEY"] ?? builder.Configuration["Jwt:Key"] ?? "DevOnly_ChangeMe_TeLoConsiglio_SuperSecret_Key_12345!",
+    Key = rawJwtKey,
     Issuer = builder.Configuration["JWT_ISSUER"] ?? "TeLoConsiglio",
     Audience = builder.Configuration["JWT_AUDIENCE"] ?? "TeLoConsiglio",
     ExpirationMinutes = int.TryParse(builder.Configuration["JWT_EXP_MIN"], out var e) ? e : 60,
@@ -93,13 +113,48 @@ builder.Services.AddAuthorization();
 
 // ----- App services -----
 builder.Services.AddScoped<IDocumentTextExtractor, DocumentTextExtractor>();
-builder.Services.AddHttpClient<IAnthropicService, AnthropicService>();
+builder.Services.AddHttpClient<IAnthropicService, AnthropicService>(client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(60);
+});
 
 // ----- API -----
 builder.Services.AddControllers().AddJsonOptions(opt =>
 {
     opt.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
     opt.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+});
+
+// Pulisci la risposta di validazione 400: rimuovi "dto: The dto field is required."
+// quando ci sono gia' errori puntuali sui campi del body.
+builder.Services.Configure<Microsoft.AspNetCore.Mvc.ApiBehaviorOptions>(opt =>
+{
+    opt.InvalidModelStateResponseFactory = context =>
+    {
+        var errors = context.ModelState
+            .Where(kv => kv.Value != null && kv.Value.Errors.Count > 0)
+            .ToDictionary(
+                kv => kv.Key,
+                kv => kv.Value!.Errors.Select(e =>
+                    string.IsNullOrEmpty(e.ErrorMessage) ? (e.Exception?.Message ?? "Valore non valido") : e.ErrorMessage
+                ).ToArray());
+
+        // Se esiste sia "dto" generico sia errori specifici di campo, scarta il generico.
+        var hasFieldErrors = errors.Keys.Any(k => !string.Equals(k, "dto", StringComparison.OrdinalIgnoreCase));
+        if (hasFieldErrors)
+            errors.Remove("dto");
+
+        var problem = new Microsoft.AspNetCore.Mvc.ValidationProblemDetails(
+            errors.ToDictionary(kv => kv.Key, kv => kv.Value as string[]))
+        {
+            Status = StatusCodes.Status400BadRequest,
+            Title = "Validazione fallita"
+        };
+        return new Microsoft.AspNetCore.Mvc.BadRequestObjectResult(problem)
+        {
+            ContentTypes = { "application/problem+json" }
+        };
+    };
 });
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -127,14 +182,30 @@ builder.Services.AddSwaggerGen(c =>
 
 builder.Services.AddCors(opt =>
 {
-    opt.AddDefaultPolicy(p => p
-        .WithOrigins(
-            builder.Configuration["FRONTEND_URL"] ?? "http://localhost:5173",
-            "http://localhost:5173",
-            "http://localhost:3000")
-        .AllowAnyHeader()
-        .AllowAnyMethod()
-        .AllowCredentials());
+    opt.AddDefaultPolicy(p =>
+    {
+        var frontendUrl = builder.Configuration["FRONTEND_URL"]
+            ?? builder.Configuration["Frontend:Url"];
+
+        if (builder.Environment.IsProduction())
+        {
+            if (string.IsNullOrWhiteSpace(frontendUrl))
+                throw new InvalidOperationException(
+                    "FRONTEND_URL non configurato in Production. CORS richiede l'origine esplicita del frontend.");
+            p.WithOrigins(frontendUrl);
+        }
+        else
+        {
+            p.WithOrigins(
+                frontendUrl ?? "http://localhost:5173",
+                "http://localhost:5173",
+                "http://localhost:3000");
+        }
+
+        p.AllowAnyHeader()
+         .AllowAnyMethod()
+         .AllowCredentials();
+    });
 });
 
 var app = builder.Build();

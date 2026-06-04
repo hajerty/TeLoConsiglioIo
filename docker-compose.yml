@@ -27,7 +27,7 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Production
       ConnectionStrings__Default: "Host=postgres;Port=5432;Database=${POSTGRES_DB:-teloconsiglio};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-postgres}"
-      JWT_KEY: ${JWT__Key:-DevOnly_ChangeMe_TeLoConsiglio_SuperSecret_Key_12345!}
+      JWT_KEY: ${JWT__Key:?JWT__Key richiesto (almeno 32 byte casuali). Esempio: openssl rand -hex 32}
       JWT_ISSUER: ${JWT__Issuer:-TeLoConsiglio}
       JWT_AUDIENCE: ${JWT__Audience:-TeLoConsiglio}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}

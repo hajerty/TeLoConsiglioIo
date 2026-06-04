@@ -16,8 +16,29 @@ public class UsersController : ControllerBase
 
     public UsersController(UserManager<ApplicationUser> users) { _users = users; }
 
+    /// <summary>
+    /// Lista compatta degli utenti per le assegnazioni ODG.
+    /// Restituisce solo Id e displayName (nessuna email/comune/ruolo) per evitare enumeration.
+    /// </summary>
     [HttpGet]
-    public async Task<ActionResult<List<UserDto>>> List()
+    public async Task<ActionResult<List<UserPickDto>>> List()
+    {
+        var list = await _users.Users
+            .OrderBy(u => u.FullName)
+            .Select(u => new UserPickDto(
+                u.Id,
+                !string.IsNullOrWhiteSpace(u.FullName) ? u.FullName : (u.Email ?? "Utente")
+            ))
+            .ToListAsync();
+        return Ok(list);
+    }
+
+    /// <summary>
+    /// Lista completa, solo Admin (email, comune, ruoli, ...).
+    /// </summary>
+    [Authorize(Roles = Roles.Admin)]
+    [HttpGet("admin")]
+    public async Task<ActionResult<List<UserDto>>> ListAdmin()
     {
         var list = await _users.Users.OrderBy(u => u.FullName).ToListAsync();
         var dto = new List<UserDto>();

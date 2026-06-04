@@ -105,6 +105,7 @@ public class ActsController : ControllerBase
     }
 
     [HttpPost("{id:guid}/generate-draft")]
+    [HttpPost("{id:guid}/ai-draft")]
     public async Task<ActionResult<GenerateDraftResponse>> GenerateDraft(Guid id, [FromBody] GenerateDraftRequest req)
     {
         if (!_ai.IsConfigured)
@@ -176,6 +177,7 @@ Produci ora il testo completo dell'atto in markdown.";
     }
 
     [HttpPost("{id:guid}/suggest-legal-refs")]
+    [HttpPost("{id:guid}/legal-refs/suggest")]
     public async Task<ActionResult<SuggestLegalRefsResponse>> SuggestLegalRefs(Guid id, [FromBody] SuggestLegalRefsRequest req)
     {
         if (!_ai.IsConfigured)
@@ -240,6 +242,8 @@ Restituisci ESCLUSIVAMENTE JSON nella forma:
     }
 
     [HttpPost("{id:guid}/insert-legal-refs")]
+    [HttpPost("{id:guid}/legal-refs/insert")]
+    [HttpPost("{id:guid}/legal-refs/confirm")]
     public async Task<ActionResult<ActDetailDto>> InsertLegalRefs(Guid id, [FromBody] InsertLegalRefsRequest req)
     {
         var uid = GetUserId();

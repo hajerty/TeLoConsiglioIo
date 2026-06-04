@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using TeLoConsiglio.Api.Auth;
 using TeLoConsiglio.Api.Dtos;
 using TeLoConsiglio.Domain.Entities;
 using TeLoConsiglio.Infrastructure.Data;
@@ -60,22 +61,30 @@ public class DocumentsController : ControllerBase
     }
 
     [HttpPost]
-    [RequestSizeLimit(50_000_000)]
+    [RequestSizeLimit(UploadValidator.MaxSizeBytes)]
     public async Task<ActionResult<DocumentDto>> Upload(IFormFile file, [FromQuery] DocumentType type = DocumentType.Documento)
     {
-        if (file == null || file.Length == 0) return BadRequest(new { error = "File mancante" });
+        if (file == null) return BadRequest(new { error = "File mancante" });
+        var (ok, error, ext) = UploadValidator.Validate(file);
+        if (!ok) return BadRequest(new { error });
+
         var uid = GetUserId();
         var dir = Path.Combine(_env.ContentRootPath, "uploads", "documents", uid);
         Directory.CreateDirectory(dir);
-        var safe = $"{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
+        var safe = $"{Guid.NewGuid()}{ext}";
         var path = Path.Combine(dir, safe);
         using (var s = System.IO.File.Create(path)) await file.CopyToAsync(s);
-        var text = await _extractor.ExtractTextAsync(path, file.FileName);
+        var originalSafe = Path.GetFileName(file.FileName ?? "");
+        var text = await _extractor.ExtractTextAsync(path, originalSafe);
+        // Tronca testo estratto per evitare bloat del DB
+        const int maxExtractedChars = 1_000_000;
+        if (text.Length > maxExtractedChars)
+            text = text.Substring(0, maxExtractedChars) + "\n[... testo troncato ...]";
         var doc = new Document
         {
             OwnerId = uid,
             FilePath = path,
-            OriginalName = file.FileName,
+            OriginalName = originalSafe,
             ExtractedText = text,
             Type = type
         };

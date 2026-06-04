@@ -5,8 +5,8 @@ import type { ProvidersDto } from '../api/types';
 import { useAuthStore } from '../auth/store';
 
 export default function Login() {
-  const [email, setEmail] = useState('admin@teloconsiglio.io');
-  const [password, setPassword] = useState('Admin!2026');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [providers, setProviders] = useState<ProvidersDto | null>(null);

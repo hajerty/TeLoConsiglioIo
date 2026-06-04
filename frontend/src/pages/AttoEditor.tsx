@@ -5,7 +5,7 @@ import { actsApi } from '../api/endpoints';
 import type { ActStatus } from '../api/types';
 import { Modal } from '../components/Modal';
 
-const STATUS: ActStatus[] = ['Bozza', 'InRevisione', 'Pronto', 'Presentato', 'Archiviato'];
+const STATUS: ActStatus[] = ['Bozza', 'Depositato', 'Approvato', 'Respinto'];
 
 export default function AttoEditor() {
   const { id } = useParams<{ id: string }>();

@@ -5,7 +5,14 @@ import { sittingsApi, usersApi } from '../api/endpoints';
 import type { Decisione } from '../api/types';
 import { Modal } from '../components/Modal';
 
-const DECISIONI: Decisione[] = ['Indecisa', 'Favorevole', 'Contraria', 'Astenuto'];
+const DECISIONI: Decisione[] = ['DaDecidere', 'Approvare', 'Respingere', 'Astenersi'];
+
+const DECISIONE_LABELS: Record<Decisione, string> = {
+  DaDecidere: 'Da decidere',
+  Approvare: 'Approvare',
+  Respingere: 'Respingere',
+  Astenersi: 'Astenersi',
+};
 
 export default function SedutaDettaglio() {
   const { id } = useParams<{ id: string }>();
@@ -24,14 +31,14 @@ export default function SedutaDettaglio() {
     decisione: Decisione;
     motivazione: string;
     assignedUserIds: string[];
-  }>({ ordine: 1, descrizione: '', decisione: 'Indecisa', motivazione: '', assignedUserIds: [] });
+  }>({ ordine: 1, descrizione: '', decisione: 'DaDecidere', motivazione: '', assignedUserIds: [] });
 
   const addM = useMutation({
     mutationFn: () => sittingsApi.addAgenda(id!, form),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['sitting', id] });
       setOpen(false);
-      setForm({ ordine: (detail.data?.items.length ?? 0) + 2, descrizione: '', decisione: 'Indecisa', motivazione: '', assignedUserIds: [] });
+      setForm({ ordine: (detail.data?.items.length ?? 0) + 2, descrizione: '', decisione: 'DaDecidere', motivazione: '', assignedUserIds: [] });
     },
   });
 
@@ -100,7 +107,7 @@ export default function SedutaDettaglio() {
                         })
                       }
                     >
-                      {DECISIONI.map((d) => <option key={d} value={d}>{d}</option>)}
+                      {DECISIONI.map((d) => <option key={d} value={d}>{DECISIONE_LABELS[d]}</option>)}
                     </select>
                   </div>
                   <div className="md:col-span-2">
@@ -176,7 +183,7 @@ export default function SedutaDettaglio() {
               }}
             >
               {(users.data ?? []).map((u) => (
-                <option key={u.id} value={u.id}>{u.fullName || u.email}</option>
+                <option key={u.id} value={u.id}>{u.displayName}</option>
               ))}
             </select>
           </div>

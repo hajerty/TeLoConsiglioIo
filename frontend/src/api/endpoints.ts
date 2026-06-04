@@ -15,6 +15,7 @@ import type {
   SittingListItem,
   SuggestedRef,
   User,
+  UserPick,
   AgendaItem,
   Decisione,
 } from './types';
@@ -27,6 +28,10 @@ export const authApi = {
   register: (dto: { email: string; password: string; fullName: string; comune?: string; partito?: string }) =>
     api.post<AuthResponse>('/api/auth/register', dto).then((r) => r.data),
   me: () => api.get<User>('/api/auth/me').then((r) => r.data),
+  refresh: (refreshToken: string) =>
+    api.post<AuthResponse>('/api/auth/refresh', { refreshToken }).then((r) => r.data),
+  logout: (refreshToken?: string | null) =>
+    api.post('/api/auth/logout', refreshToken ? { refreshToken } : {}).then((r) => r.data),
 };
 
 // --- PROFILE ---
@@ -79,7 +84,7 @@ export const actsApi = {
       .then((r) => r.data),
   suggestLegalRefs: (id: string, text?: string) =>
     api
-      .post<{ suggestions: SuggestedRef[] }>(`/api/acts/${id}/legal-refs/suggest`, { text })
+      .post<{ references: SuggestedRef[] }>(`/api/acts/${id}/legal-refs/suggest`, { text })
       .then((r) => r.data),
   insertLegalRefs: (id: string, referenceIds: string[], mode: 'append' | 'placeholder' = 'append') =>
     api
@@ -107,5 +112,5 @@ export const sittingsApi = {
 
 // --- USERS ---
 export const usersApi = {
-  list: () => api.get<User[]>('/api/users').then((r) => r.data),
+  list: () => api.get<UserPick[]>('/api/users').then((r) => r.data),
 };

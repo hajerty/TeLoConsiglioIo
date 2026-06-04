@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { actsApi } from '../api/endpoints';
 import type { ActType } from '../api/types';
 
-const TYPES: (ActType | 'Tutti')[] = ['Tutti', 'Mozione', 'OrdineDelGiorno', 'Delibera', 'Emendamento', 'Comunicazione'];
+const TYPES: (ActType | 'Tutti')[] = ['Tutti', 'Mozione', 'OrdineDelGiorno', 'Delibera', 'Emendamento'];
 
 export default function Archivio() {
   const [q, setQ] = useState('');

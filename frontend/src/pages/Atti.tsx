@@ -5,7 +5,7 @@ import { actsApi } from '../api/endpoints';
 import type { ActType } from '../api/types';
 import { Modal } from '../components/Modal';
 
-const ACT_TYPES: ActType[] = ['Mozione', 'OrdineDelGiorno', 'Delibera', 'Emendamento', 'Comunicazione'];
+const ACT_TYPES: ActType[] = ['Mozione', 'OrdineDelGiorno', 'Delibera', 'Emendamento'];
 
 export default function Atti() {
   const qc = useQueryClient();

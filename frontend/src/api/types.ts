@@ -22,8 +22,8 @@ export interface ProvidersDto {
   microsoft: boolean;
 }
 
-export type ActType = 'Mozione' | 'OrdineDelGiorno' | 'Delibera' | 'Emendamento' | 'Comunicazione';
-export type ActStatus = 'Bozza' | 'InRevisione' | 'Pronto' | 'Presentato' | 'Archiviato';
+export type ActType = 'Mozione' | 'OrdineDelGiorno' | 'Delibera' | 'Emendamento';
+export type ActStatus = 'Bozza' | 'Depositato' | 'Approvato' | 'Respinto';
 
 export interface ActListItem {
   id: string;
@@ -70,7 +70,7 @@ export interface SuggestedRef {
   description: string;
 }
 
-export type DocumentType = 'Documento' | 'Delibera' | 'OrdineDelGiorno' | 'Verbale' | 'Allegato';
+export type DocumentType = 'Delibera' | 'Verbale' | 'Documento' | 'Altro';
 
 export interface DocumentItem {
   id: string;
@@ -109,7 +109,7 @@ export interface AssignedUser {
   fullName: string;
 }
 
-export type Decisione = 'Indecisa' | 'Favorevole' | 'Contraria' | 'Astenuto';
+export type Decisione = 'DaDecidere' | 'Approvare' | 'Respingere' | 'Astenersi';
 
 export interface AgendaItem {
   id: string;
@@ -138,4 +138,9 @@ export interface ElectoralProgram {
   id: string;
   originalName: string;
   uploadedAt: string;
+}
+
+export interface UserPick {
+  id: string;
+  displayName: string;
 }

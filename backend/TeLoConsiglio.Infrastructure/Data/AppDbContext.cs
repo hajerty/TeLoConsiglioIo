@@ -19,6 +19,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<AgendaItem> AgendaItems => Set<AgendaItem>();
     public DbSet<AgendaItemAssignment> AgendaItemAssignments => Set<AgendaItemAssignment>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<UsageLog> UsageLogs => Set<UsageLog>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -120,5 +121,14 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             .OnDelete(DeleteBehavior.Cascade);
 
         b.Entity<RefreshToken>().HasIndex(r => r.TokenHash).IsUnique();
+
+        b.Entity<UsageLog>()
+            .HasOne(u => u.User)
+            .WithMany()
+            .HasForeignKey(u => u.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        b.Entity<UsageLog>().HasIndex(u => new { u.UserId, u.CreatedAt });
+        b.Entity<UsageLog>().Property(u => u.EstimatedCostUsd).HasPrecision(18, 6);
     }
 }

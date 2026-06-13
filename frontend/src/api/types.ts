@@ -219,17 +219,17 @@ export interface NextSitting {
 
 export interface DocToAnalyze {
   sittingId: string;
+  sittingData: string;
   sittingTitolo: string;
   agendaItemId: string;
-  agendaItemDescrizione: string;
-  documentId: string;
-  documentName: string;
+  descrizione: string;
+  documentId: string | null;
 }
 
 export interface DashboardCounters {
-  attiBozza: number;
-  seduteFuture: number;
-  invitatiPending?: number | null;
+  actsBozza: number;
+  upcomingSittings: number;
+  pendingInvitations?: number | null;
 }
 
 export interface DashboardPayload {
@@ -244,7 +244,7 @@ export interface SittingsQueryParams {
   from?: string;
   to?: string;
   q?: string;
-  period?: 'all' | 'future' | 'past';
+  period?: 'All' | 'Past' | 'Upcoming';
   page?: number;
   pageSize?: number;
 }

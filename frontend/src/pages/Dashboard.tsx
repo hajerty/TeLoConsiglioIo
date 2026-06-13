@@ -53,7 +53,7 @@ export default function Dashboard() {
   const nextSitting = data?.nextSitting ?? null;
   const recentDocuments = data?.recentDocuments ?? [];
   const documentsToAnalyze = data?.documentsToAnalyze ?? [];
-  const counters = data?.counters ?? { attiBozza: 0, seduteFuture: 0 };
+  const counters = data?.counters ?? { actsBozza: 0, upcomingSittings: 0 };
 
   return (
     <div>
@@ -163,9 +163,13 @@ export default function Dashboard() {
                   >
                     <div className="text-xs text-slate-400 mb-0.5">{item.sittingTitolo}</div>
                     <div className="text-sm font-medium text-slate-800 group-hover:text-brand-700 line-clamp-2">
-                      {item.agendaItemDescrizione}
+                      {item.descrizione}
                     </div>
-                    <div className="text-xs text-slate-500 mt-0.5 truncate">{item.documentName}</div>
+                    {item.documentId != null && (
+                      <span className="text-xs bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded mt-1 inline-block">
+                        Documento allegato
+                      </span>
+                    )}
                   </Link>
                 </li>
               ))}
@@ -182,18 +186,18 @@ export default function Dashboard() {
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-slate-50 rounded-lg p-3 text-center">
               <FileText className="w-5 h-5 text-slate-500 mx-auto mb-1" />
-              <div className="text-2xl font-bold text-slate-800">{counters.attiBozza}</div>
+              <div className="text-2xl font-bold text-slate-800">{counters.actsBozza}</div>
               <div className="text-xs text-slate-500 mt-0.5">Atti in bozza</div>
             </div>
             <div className="bg-slate-50 rounded-lg p-3 text-center">
               <Calendar className="w-5 h-5 text-slate-500 mx-auto mb-1" />
-              <div className="text-2xl font-bold text-slate-800">{counters.seduteFuture}</div>
+              <div className="text-2xl font-bold text-slate-800">{counters.upcomingSittings}</div>
               <div className="text-xs text-slate-500 mt-0.5">Sedute future</div>
             </div>
-            {canManage && counters.invitatiPending != null && (
+            {canManage && counters.pendingInvitations != null && (
               <div className="col-span-2 bg-blue-50 rounded-lg p-3 text-center">
                 <Mail className="w-5 h-5 text-blue-500 mx-auto mb-1" />
-                <div className="text-2xl font-bold text-blue-800">{counters.invitatiPending}</div>
+                <div className="text-2xl font-bold text-blue-800">{counters.pendingInvitations}</div>
                 <div className="text-xs text-blue-600 mt-0.5">Inviti in attesa</div>
               </div>
             )}

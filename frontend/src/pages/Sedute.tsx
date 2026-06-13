@@ -9,12 +9,12 @@ import { useAuthStore } from '../auth/store';
 
 const ADMIN_ROLES = ['Admin', 'Capogruppo', 'Vice'];
 
-type Period = 'all' | 'future' | 'past';
+type Period = 'All' | 'Past' | 'Upcoming';
 
 const PERIOD_LABELS: Record<Period, string> = {
-  all: 'Tutte',
-  future: 'Future',
-  past: 'Passate',
+  All: 'Tutte',
+  Upcoming: 'Future',
+  Past: 'Passate',
 };
 
 const PAGE_SIZE = 20;
@@ -24,7 +24,7 @@ export default function Sedute() {
   const user = useAuthStore((s) => s.user);
   const canManage = user?.roles?.some((r) => ADMIN_ROLES.includes(r)) ?? false;
 
-  const [period, setPeriod] = useState<Period>('all');
+  const [period, setPeriod] = useState<Period>('All');
   const [q, setQ] = useState('');
   const [debouncedQ, setDebouncedQ] = useState('');
   const [from, setFrom] = useState('');
@@ -102,7 +102,7 @@ export default function Sedute() {
       <div className="card mb-4">
         {/* Tab periodo */}
         <div className="flex gap-1 mb-3 border-b border-slate-200 pb-3">
-          {(['all', 'future', 'past'] as Period[]).map((p) => (
+          {(['All', 'Upcoming', 'Past'] as Period[]).map((p) => (
             <button
               key={p}
               onClick={() => setPeriod(p)}

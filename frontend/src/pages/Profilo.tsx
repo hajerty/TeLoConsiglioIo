@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Compass, Heart, FileBadge, RotateCcw, Upload, Trash2 } from 'lucide-react';
 import { profileApi } from '../api/endpoints';
 import { Modal } from '../components/Modal';
 
@@ -58,7 +59,7 @@ function TagInput({
           }}
           placeholder="Scrivi e premi Invio o +"
         />
-        <button type="button" className="btn-secondary" onClick={add}>+</button>
+        <button type="button" className="btn-secondary min-h-[44px]" onClick={add}>+</button>
       </div>
     </div>
   );
@@ -129,10 +130,17 @@ export default function Profilo() {
 
       {/* Indirizzo di mandato */}
       <div className="card space-y-5">
-        <h2 className="text-lg font-semibold">Indirizzo di mandato</h2>
-        <p className="text-sm text-slate-500 -mt-3">
-          Definisci le priorita' del tuo mandato. L'AI usera' questi dati per generare atti coerenti con la tua posizione.
-        </p>
+        <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+          <div className="w-10 h-10 bg-brand-50 rounded-lg flex items-center justify-center flex-shrink-0">
+            <Compass className="w-5 h-5 text-brand-600" />
+          </div>
+          <div>
+            <h2 className="text-base font-bold text-slate-900">Indirizzo di mandato</h2>
+            <p className="text-sm text-slate-500">
+              Definisci le priorita' del tuo mandato. L'AI usera' questi dati per generare atti coerenti con la tua posizione.
+            </p>
+          </div>
+        </div>
 
         <TagInput
           label="Argomenti forti (tesi che sosterrai)"
@@ -148,7 +156,7 @@ export default function Profilo() {
 
         <div className="flex items-center gap-3">
           <button
-            className="btn-primary"
+            className="btn-primary min-h-[44px]"
             onClick={() => saveM.mutate()}
             disabled={saveM.isPending}
           >
@@ -160,73 +168,101 @@ export default function Profilo() {
 
       {/* Linea politica */}
       <div className="card">
-        <div className="flex items-center justify-between mb-1">
-          <h2 className="text-lg font-semibold flex items-center">
-            Linea politica
-            {sourceBadge}
-          </h2>
-          {source === 'Partito' || source === 'Manuale' ? (
+        <div className="flex items-center justify-between mb-1 pb-3 border-b border-slate-100 flex-wrap gap-2">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-brand-50 rounded-lg flex items-center justify-center flex-shrink-0">
+              <Heart className="w-5 h-5 text-brand-600" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-slate-900 flex items-center flex-wrap gap-1">
+                Linea politica
+                {sourceBadge}
+              </h2>
+              <p className="text-sm text-slate-500">
+                Orientamento e priorita' del mandato per la generazione AI.
+              </p>
+            </div>
+          </div>
+          {(source === 'Partito' || source === 'Manuale') && (
             <button
-              className="btn-secondary text-xs"
+              className="btn-secondary text-xs flex items-center gap-1.5 min-h-[44px]"
               onClick={() => setResetModalOpen(true)}
             >
-              Ripristina dal manifesto del partito
+              <RotateCcw className="w-3.5 h-3.5" />
+              Ripristina dal manifesto
             </button>
-          ) : null}
+          )}
         </div>
-        <p className="text-sm text-slate-500 mb-3">
-          Descrivi il tuo orientamento, le priorita' del mandato, il tono con cui vuoi scrivere gli atti.
-          Questa linea sara' usata dall'AI per generare bozze e riassunti coerenti.
-        </p>
-        <label className="label">Linea politica (markdown)</label>
-        <textarea
-          className="input font-mono text-sm"
-          rows={10}
-          value={linea}
-          onChange={(e) => setLinea(e.target.value)}
-        />
-        <div className="mt-3 flex items-center gap-3">
-          <button
-            className="btn-primary"
-            onClick={() => saveM.mutate()}
-            disabled={saveM.isPending}
-          >
-            {saveM.isPending ? 'Salvataggio...' : 'Salva linea politica'}
-          </button>
-          {saveM.isSuccess && <span className="text-sm text-green-600">Salvato.</span>}
+        <div className="mt-4">
+          <label className="label">Linea politica (markdown)</label>
+          <textarea
+            className="input font-mono text-sm"
+            rows={10}
+            value={linea}
+            onChange={(e) => setLinea(e.target.value)}
+          />
+          <div className="mt-3 flex items-center gap-3">
+            <button
+              className="btn-primary min-h-[44px]"
+              onClick={() => saveM.mutate()}
+              disabled={saveM.isPending}
+            >
+              {saveM.isPending ? 'Salvataggio...' : 'Salva linea politica'}
+            </button>
+            {saveM.isSuccess && <span className="text-sm text-green-600">Salvato.</span>}
+          </div>
         </div>
       </div>
 
       {/* Programma elettorale */}
       <div className="card">
-        <h2 className="text-lg font-semibold mb-2">Programma elettorale</h2>
-        <p className="text-sm text-slate-500 mb-3">
-          Carica il PDF/Word del tuo programma. Verra' indicizzato per gli strumenti AI.
-        </p>
-        <input
-          type="file"
-          accept=".pdf,.doc,.docx,.txt,.md"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) uploadM.mutate(f);
-            e.target.value = '';
-          }}
-        />
-        {uploadM.isPending && <div className="text-sm text-slate-500 mt-2">Caricamento...</div>}
-        <ul className="mt-4 divide-y divide-slate-100">
+        <div className="flex items-center gap-3 mb-4 pb-3 border-b border-slate-100">
+          <div className="w-10 h-10 bg-brand-50 rounded-lg flex items-center justify-center flex-shrink-0">
+            <FileBadge className="w-5 h-5 text-brand-600" />
+          </div>
+          <div>
+            <h2 className="text-base font-bold text-slate-900">Programma elettorale</h2>
+            <p className="text-sm text-slate-500">
+              Carica il PDF/Word del tuo programma. Verra' indicizzato per gli strumenti AI.
+            </p>
+          </div>
+        </div>
+
+        <label className="flex items-center gap-3 cursor-pointer mb-4">
+          <input
+            type="file"
+            accept=".pdf,.doc,.docx,.txt,.md"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) uploadM.mutate(f);
+              e.target.value = '';
+            }}
+          />
+          <span className="btn-secondary flex items-center gap-2 min-h-[44px]">
+            <Upload className="w-4 h-4" />
+            Carica programma
+          </span>
+        </label>
+        {uploadM.isPending && <div className="text-sm text-slate-500 mb-2">Caricamento...</div>}
+
+        <ul className="divide-y divide-slate-100">
           {(programsQ.data ?? []).map((p) => (
-            <li key={p.id} className="py-2 flex justify-between items-center">
-              <div>
-                <div className="font-medium">{p.originalName}</div>
-                <div className="text-xs text-slate-500">
-                  {new Date(p.uploadedAt).toLocaleString('it-IT')}
+            <li key={p.id} className="py-2 flex justify-between items-center gap-2">
+              <div className="flex items-center gap-2 min-w-0">
+                <FileBadge className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                <div className="min-w-0">
+                  <div className="font-medium truncate">{p.originalName}</div>
+                  <div className="text-xs text-slate-500">
+                    {new Date(p.uploadedAt).toLocaleString('it-IT')}
+                  </div>
                 </div>
               </div>
               <button
-                className="btn-secondary text-xs"
+                className="btn-secondary text-xs flex items-center gap-1.5 min-h-[44px] flex-shrink-0"
                 onClick={() => deleteM.mutate(p.id)}
               >
-                Elimina
+                <Trash2 className="w-3.5 h-3.5" />
               </button>
             </li>
           ))}

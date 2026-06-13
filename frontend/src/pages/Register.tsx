@@ -82,10 +82,10 @@ export default function Register() {
   if (inviteStatus === 'consumed') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
-        <div className="bg-white rounded-xl shadow-lg w-full max-w-md p-8 text-center">
+        <div className="bg-white rounded-xl shadow-lg w-full max-w-md p-6 sm:p-8 text-center">
           <div className="text-2xl font-semibold text-slate-900 mb-2">Invito gia' utilizzato</div>
           <p className="text-slate-500 mb-6">Questo invito e' stato gia' usato. Prova ad accedere con le tue credenziali.</p>
-          <a href="/login" className="btn-primary inline-block">Vai al login</a>
+          <a href="/login" className="btn-primary inline-block min-h-[48px] sm:min-h-[44px] px-6">Vai al login</a>
         </div>
       </div>
     );
@@ -94,7 +94,7 @@ export default function Register() {
   if (inviteStatus === 'invalid') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
-        <div className="bg-white rounded-xl shadow-lg w-full max-w-md p-8 text-center">
+        <div className="bg-white rounded-xl shadow-lg w-full max-w-md p-6 sm:p-8 text-center">
           <div className="text-2xl font-semibold text-slate-900 mb-2">Invito non valido</div>
           <p className="text-slate-500 mb-6">Il link di invito e' scaduto o non valido. Chiedi un nuovo invito al capogruppo.</p>
           <a href="/login" className="text-brand-600 font-medium">Torna al login</a>
@@ -105,7 +105,7 @@ export default function Register() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-100 p-4">
-      <div className="bg-white rounded-xl shadow-lg w-full max-w-md p-8">
+      <div className="bg-white rounded-xl shadow-lg w-full max-w-md p-6 sm:p-8">
         <h1 className="text-2xl font-semibold text-slate-900 mb-1">Crea un account</h1>
         <p className="text-sm text-slate-500 mb-6">
           {inviteStatus === 'valid' ? 'Completa la registrazione con il tuo invito' : 'Registrati come consigliere'}
@@ -119,7 +119,7 @@ export default function Register() {
           <div>
             <label className="label">Nome completo</label>
             <input
-              className="input"
+              className="input min-h-[48px]"
               value={form.fullName}
               onChange={(e) => setForm({ ...form, fullName: e.target.value })}
               required
@@ -128,7 +128,7 @@ export default function Register() {
           <div>
             <label className="label">Email</label>
             <input
-              className="input"
+              className="input min-h-[48px]"
               type="email"
               value={form.email}
               onChange={(e) => setForm({ ...form, email: e.target.value })}
@@ -139,7 +139,7 @@ export default function Register() {
           <div>
             <label className="label">Password</label>
             <input
-              className="input"
+              className="input min-h-[48px]"
               type="password"
               value={form.password}
               onChange={(e) => setForm({ ...form, password: e.target.value })}
@@ -151,7 +151,7 @@ export default function Register() {
           <div>
             <label className="label">Comune <span className="text-red-500">*</span></label>
             <input
-              className="input"
+              className="input min-h-[48px]"
               value={form.comune}
               onChange={(e) => setForm({ ...form, comune: e.target.value })}
               readOnly={inviteLocked.comune}
@@ -162,7 +162,7 @@ export default function Register() {
           <div>
             <label className="label">Partito / Lista</label>
             <select
-              className="input"
+              className="input min-h-[48px]"
               value={form.partito}
               onChange={(e) => setForm({ ...form, partito: e.target.value })}
             >
@@ -177,7 +177,7 @@ export default function Register() {
           <div>
             <label className="label">Gruppo consiliare <span className="text-slate-400 text-xs">(opzionale)</span></label>
             <input
-              className="input"
+              className="input min-h-[48px]"
               value={form.gruppo}
               onChange={(e) => setForm({ ...form, gruppo: e.target.value })}
               readOnly={inviteLocked.gruppo}
@@ -186,7 +186,10 @@ export default function Register() {
           </div>
 
           {error && <div className="text-sm text-red-600">{error}</div>}
-          <button className="btn-primary w-full" disabled={busy || inviteStatus === 'loading'}>
+          <button
+            className="btn-primary w-full min-h-[48px] sm:min-h-[44px]"
+            disabled={busy || inviteStatus === 'loading'}
+          >
             {busy ? 'Attendere...' : 'Registrati'}
           </button>
         </form>

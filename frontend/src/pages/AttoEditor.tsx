@@ -1,6 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import {
+  Save,
+  Trash2,
+  FileDown,
+  Sparkles,
+  BookOpen,
+  Paperclip,
+  Link as LinkIcon,
+} from 'lucide-react';
 import { actsApi } from '../api/endpoints';
 import { getAIErrorMessage } from '../api/aiError';
 import type { ActStatus } from '../api/types';
@@ -191,20 +200,32 @@ export default function AttoEditor() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-slate-900">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h1 className="text-xl md:text-2xl font-semibold text-slate-900">
           {detail.data.tipo} - {titolo || '(senza titolo)'}
         </h1>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <button
-            className="btn-secondary text-sm"
+            className="btn-secondary text-sm flex items-center gap-1.5 min-h-[44px]"
             onClick={handleExportPdf}
             disabled={pdfBusy}
           >
-            {pdfBusy ? 'Export...' : 'Esporta PDF'}
+            <FileDown className="w-4 h-4" />
+            <span className="hidden sm:inline">{pdfBusy ? 'Export...' : 'Esporta PDF'}</span>
           </button>
-          <button className="btn-secondary" onClick={() => removeM.mutate()}>Elimina</button>
-          <button className="btn-primary" disabled={saveM.isPending} onClick={() => saveM.mutate()}>
+          <button
+            className="btn-secondary text-sm flex items-center gap-1.5 min-h-[44px] text-red-600 hover:text-red-700"
+            onClick={() => removeM.mutate()}
+          >
+            <Trash2 className="w-4 h-4" />
+            <span className="hidden sm:inline">Elimina</span>
+          </button>
+          <button
+            className="btn-primary flex items-center gap-1.5 min-h-[44px]"
+            disabled={saveM.isPending}
+            onClick={() => saveM.mutate()}
+          >
+            <Save className="w-4 h-4" />
             {saveM.isPending ? 'Salvataggio...' : 'Salva'}
           </button>
         </div>
@@ -238,13 +259,23 @@ export default function AttoEditor() {
       </div>
 
       <div className="card">
-        <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
           <h2 className="text-lg font-semibold">Testo dell'atto (markdown)</h2>
-          <div className="flex gap-2">
-            <button className="btn-secondary text-sm" disabled={suggestM.isPending} onClick={() => suggestM.mutate()}>
+          <div className="flex gap-2 flex-wrap">
+            <button
+              className="btn-secondary text-sm flex items-center gap-1.5 min-h-[44px]"
+              disabled={suggestM.isPending}
+              onClick={() => suggestM.mutate()}
+            >
+              <BookOpen className="w-4 h-4" />
               {suggestM.isPending ? 'AI...' : 'Suggerisci riferimenti'}
             </button>
-            <button className="btn-primary text-sm" disabled={draftM.isPending} onClick={() => draftM.mutate()}>
+            <button
+              className="btn-primary text-sm flex items-center gap-1.5 min-h-[44px]"
+              disabled={draftM.isPending}
+              onClick={() => draftM.mutate()}
+            >
+              <Sparkles className="w-4 h-4" />
               {draftM.isPending ? 'AI...' : 'Genera bozza AI'}
             </button>
           </div>
@@ -291,7 +322,10 @@ export default function AttoEditor() {
 
       {/* Box Allegati */}
       <div className="card">
-        <h2 className="text-lg font-semibold mb-3">Allegati</h2>
+        <div className="flex items-center gap-2 mb-3">
+          <Paperclip className="w-5 h-5 text-brand-600" />
+          <h2 className="text-lg font-semibold">Allegati</h2>
+        </div>
         {attachmentsQ.isLoading ? (
           <div className="text-sm text-slate-500">Caricamento allegati...</div>
         ) : (
@@ -302,26 +336,23 @@ export default function AttoEditor() {
             {(attachmentsQ.data ?? []).map((att) => (
               <li key={att.id} className="py-2 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0">
-                  <svg className="w-4 h-4 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                      d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-                  </svg>
+                  <Paperclip className="w-4 h-4 text-slate-400 flex-shrink-0" />
                   <span className="text-sm font-medium truncate">{att.originalName}</span>
                   <span className="text-xs text-slate-400 flex-shrink-0">{formatBytes(att.sizeBytes)}</span>
                 </div>
                 <div className="flex gap-2 flex-shrink-0">
                   <button
-                    className="btn-secondary text-xs"
+                    className="btn-secondary text-xs min-h-[44px]"
                     onClick={() => handleDownloadAttachment(att.id, att.originalName)}
                   >
                     Download
                   </button>
                   <button
-                    className="btn-secondary text-xs text-red-600 hover:text-red-700"
+                    className="btn-secondary text-xs text-red-600 hover:text-red-700 min-h-[44px]"
                     onClick={() => deleteAttM.mutate(att.id)}
                     disabled={deleteAttM.isPending}
                   >
-                    Elimina
+                    <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </div>
               </li>
@@ -341,11 +372,12 @@ export default function AttoEditor() {
             }}
           />
           <button
-            className="btn-secondary text-sm"
+            className="btn-secondary text-sm flex items-center gap-1.5 min-h-[44px]"
             onClick={() => fileInputRef.current?.click()}
             disabled={uploadAttM.isPending}
           >
-            {uploadAttM.isPending ? 'Caricamento...' : '+ Aggiungi allegato'}
+            <Paperclip className="w-4 h-4" />
+            {uploadAttM.isPending ? 'Caricamento...' : 'Aggiungi allegato'}
           </button>
           <span className="text-xs text-slate-400">Formati: PDF, TXT, MD, DOCX</span>
         </div>
@@ -353,7 +385,10 @@ export default function AttoEditor() {
 
       {/* Box Link di spunto */}
       <div className="card">
-        <h2 className="text-lg font-semibold mb-2">Link di spunto</h2>
+        <div className="flex items-center gap-2 mb-2">
+          <LinkIcon className="w-5 h-5 text-brand-600" />
+          <h2 className="text-lg font-semibold">Link di spunto</h2>
+        </div>
         <p className="text-sm text-slate-500 mb-3">
           URL di riferimento per questo atto (articoli, normative, documenti online). Verranno salvati con l'atto.
         </p>
@@ -371,10 +406,10 @@ export default function AttoEditor() {
               <button
                 type="button"
                 onClick={() => removeUrl(i)}
-                className="text-slate-400 hover:text-red-500 flex-shrink-0"
+                className="text-slate-400 hover:text-red-500 flex-shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
                 aria-label="Rimuovi URL"
               >
-                ×
+                <Trash2 className="w-3.5 h-3.5" />
               </button>
             </li>
           ))}
@@ -393,7 +428,10 @@ export default function AttoEditor() {
             />
             {urlError && <div className="text-xs text-red-600 mt-1">{urlError}</div>}
           </div>
-          <button type="button" className="btn-secondary" onClick={addUrl}>+</button>
+          <button type="button" className="btn-secondary min-h-[44px] flex items-center gap-1" onClick={addUrl}>
+            <LinkIcon className="w-4 h-4" />
+            Aggiungi
+          </button>
         </div>
         <p className="text-xs text-slate-400 mt-2">I link vengono salvati premendo "Salva" nella toolbar.</p>
       </div>

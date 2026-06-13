@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Plus, FilePlus2, Gavel, ClipboardList, GitBranch, ChevronDown } from 'lucide-react';
 import { actsApi } from '../api/endpoints';
 import type { ActListItem, ActType } from '../api/types';
 import { Modal } from '../components/Modal';
@@ -22,40 +23,37 @@ function CreateMenu({ onSelect }: CreateMenuProps) {
     return () => document.removeEventListener('mousedown', handler);
   }, [open]);
 
-  const MENU_ITEMS: { label: string; tipo: ActType }[] = [
-    { label: 'Crea mozione', tipo: 'Mozione' },
-    { label: 'Crea delibera di consiglio', tipo: 'Delibera' },
-    { label: 'Crea ordine del giorno', tipo: 'OrdineDelGiorno' },
-    { label: 'Crea emendamento', tipo: 'Emendamento' },
+  const MENU_ITEMS: { label: string; tipo: ActType; Icon: React.ElementType }[] = [
+    { label: 'Crea mozione', tipo: 'Mozione', Icon: FilePlus2 },
+    { label: 'Crea delibera di consiglio', tipo: 'Delibera', Icon: Gavel },
+    { label: 'Crea ordine del giorno', tipo: 'OrdineDelGiorno', Icon: ClipboardList },
+    { label: 'Crea emendamento', tipo: 'Emendamento', Icon: GitBranch },
   ];
 
   return (
     <div className="relative" ref={ref}>
       <button
-        className="btn-primary flex items-center gap-2"
+        className="btn-primary flex items-center gap-2 min-h-[44px]"
         onClick={() => setOpen((v) => !v)}
         aria-haspopup="true"
         aria-expanded={open}
       >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-        </svg>
+        <Plus className="w-4 h-4" />
         Nuovo atto
-        <svg className="w-3 h-3 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
+        <ChevronDown className="w-3 h-3 ml-1" />
       </button>
       {open && (
         <div className="absolute right-0 mt-1 w-56 bg-white border border-slate-200 rounded-lg shadow-lg z-20 py-1">
-          {MENU_ITEMS.map(({ label, tipo }) => (
+          {MENU_ITEMS.map(({ label, tipo, Icon }) => (
             <button
               key={tipo}
-              className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-brand-50 hover:text-brand-800"
+              className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-brand-50 hover:text-brand-800 flex items-center gap-2 min-h-[44px]"
               onClick={() => {
                 setOpen(false);
                 onSelect(tipo);
               }}
             >
+              <Icon className="w-4 h-4 flex-shrink-0 text-slate-500" />
               {label}
             </button>
           ))}
@@ -128,35 +126,55 @@ export default function Atti() {
         ) : !list.data?.length ? (
           <div className="text-slate-500">Nessun atto. Creane uno per iniziare.</div>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-left text-slate-500 border-b border-slate-200">
-                <th className="py-2">Titolo</th>
-                <th>Tipo</th>
-                <th>Stato</th>
-                <th>Aggiornato</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {list.data.map((a) => (
-                <tr key={a.id} className="border-b border-slate-100">
-                  <td className="py-2">
-                    <Link to={`/atti/${a.id}`} className="font-medium text-brand-700 hover:underline">
-                      {a.titolo || '(senza titolo)'}
-                    </Link>
-                    <div className="text-xs text-slate-500">{a.oggetto}</div>
-                  </td>
-                  <td>{a.tipo}</td>
-                  <td>{a.status}</td>
-                  <td className="text-xs text-slate-500">{new Date(a.updatedAt).toLocaleString('it-IT')}</td>
-                  <td>
-                    <Link to={`/atti/${a.id}`} className="text-brand-600 text-xs">Apri</Link>
-                  </td>
+          <>
+            {/* Desktop table */}
+            <table className="hidden md:table w-full text-sm">
+              <thead>
+                <tr className="text-left text-slate-500 border-b border-slate-200">
+                  <th className="py-2">Titolo</th>
+                  <th>Tipo</th>
+                  <th>Stato</th>
+                  <th>Aggiornato</th>
+                  <th></th>
                 </tr>
+              </thead>
+              <tbody>
+                {list.data.map((a) => (
+                  <tr key={a.id} className="border-b border-slate-100">
+                    <td className="py-2">
+                      <Link to={`/atti/${a.id}`} className="font-medium text-brand-700 hover:underline">
+                        {a.titolo || '(senza titolo)'}
+                      </Link>
+                      <div className="text-xs text-slate-500">{a.oggetto}</div>
+                    </td>
+                    <td>{a.tipo}</td>
+                    <td>{a.status}</td>
+                    <td className="text-xs text-slate-500">{new Date(a.updatedAt).toLocaleString('it-IT')}</td>
+                    <td>
+                      <Link to={`/atti/${a.id}`} className="text-brand-600 text-xs">Apri</Link>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            {/* Mobile card list */}
+            <ul className="md:hidden divide-y divide-slate-100">
+              {list.data.map((a) => (
+                <li key={a.id} className="py-3">
+                  <Link to={`/atti/${a.id}`} className="block">
+                    <div className="font-medium text-brand-700">{a.titolo || '(senza titolo)'}</div>
+                    <div className="text-xs text-slate-500 mt-0.5">{a.oggetto}</div>
+                    <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                      <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">{a.tipo}</span>
+                      <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full">{a.status}</span>
+                      <span className="text-xs text-slate-400 ml-auto">{new Date(a.updatedAt).toLocaleDateString('it-IT')}</span>
+                    </div>
+                  </Link>
+                </li>
               ))}
-            </tbody>
-          </table>
+            </ul>
+          </>
         )}
       </div>
 
@@ -195,7 +213,7 @@ export default function Atti() {
             ) : (
               parentActs.map((a) => (
                 <li key={a.id}>
-                  <label className="flex items-start gap-3 py-2 cursor-pointer hover:bg-slate-50 px-1 rounded">
+                  <label className="flex items-start gap-3 py-2 cursor-pointer hover:bg-slate-50 px-1 rounded min-h-[44px]">
                     <input
                       type="radio"
                       name="parentAct"

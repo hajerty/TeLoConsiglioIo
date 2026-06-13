@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Filter, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { sittingsApi } from '../api/endpoints';
 import type { SittingsQueryParams } from '../api/types';
 import { Modal } from '../components/Modal';
@@ -92,8 +92,9 @@ export default function Sedute() {
       <div className="flex items-center justify-between mb-4">
         <h1 className="text-2xl font-semibold text-slate-900">Sedute</h1>
         {canManage && (
-          <button className="btn-primary" onClick={() => setOpen(true)}>
-            + Nuova seduta
+          <button className="btn-primary flex items-center gap-2 min-h-[44px]" onClick={() => setOpen(true)}>
+            <Plus className="w-4 h-4" />
+            Nuova seduta
           </button>
         )}
       </div>
@@ -130,8 +131,9 @@ export default function Sedute() {
           </div>
           <button
             onClick={() => setShowDateFilters((v) => !v)}
-            className={`btn-secondary text-sm py-1.5 ${showDateFilters ? 'bg-slate-100' : ''}`}
+            className={`btn-secondary text-sm py-1.5 min-h-[44px] flex items-center gap-1.5 ${showDateFilters ? 'bg-slate-100' : ''}`}
           >
+            <Filter className="w-4 h-4" />
             {showDateFilters ? 'Nascondi date' : 'Filtra per data'}
           </button>
         </div>

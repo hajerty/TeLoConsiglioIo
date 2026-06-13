@@ -1,12 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
-  FileText,
+  CalendarClock,
+  FileClock,
+  AlertTriangle,
+  Pencil,
   Calendar,
   Mail,
-  AlertCircle,
   CheckCircle,
-  Clock,
 } from 'lucide-react';
 import { dashboardApi } from '../api/endpoints';
 import { useAuthStore } from '../auth/store';
@@ -30,6 +31,31 @@ function formatDateShortIT(dateStr: string) {
     month: 'short',
     year: 'numeric',
   }).format(new Date(dateStr));
+}
+
+interface CardHeaderProps {
+  icon: React.ElementType;
+  title: string;
+  subtitle?: string;
+  iconBg?: string;
+  iconColor?: string;
+}
+
+function CardHeader({ icon: Icon, title, subtitle, iconBg = 'bg-brand-50', iconColor = 'text-brand-600' }: CardHeaderProps) {
+  return (
+    <>
+      <div className="flex items-center gap-3 mb-3">
+        <div className={`w-10 h-10 ${iconBg} rounded-lg flex items-center justify-center flex-shrink-0`}>
+          <Icon className={`w-5 h-5 ${iconColor}`} />
+        </div>
+        <div>
+          <h2 className="text-base font-bold text-slate-900">{title}</h2>
+          {subtitle && <p className="text-sm text-slate-500">{subtitle}</p>}
+        </div>
+      </div>
+      <div className="border-t border-slate-100 mb-3" />
+    </>
+  );
 }
 
 export default function Dashboard() {
@@ -61,16 +87,14 @@ export default function Dashboard() {
 
       {/* Card prossima seduta — full width */}
       <div className="card mb-4">
-        <div className="flex items-center gap-2 mb-3">
-          <Calendar className="w-5 h-5 text-brand-600" />
-          <h2 className="text-lg font-semibold">Prossima seduta del Comune</h2>
-        </div>
+        <CardHeader
+          icon={CalendarClock}
+          title="Prossima seduta del Comune"
+          subtitle={nextSitting ? formatDateIT(nextSitting.data) : undefined}
+        />
         {nextSitting ? (
           <div>
-            <div className="text-slate-700 font-medium capitalize">
-              {formatDateIT(nextSitting.data)}
-            </div>
-            <div className="text-sm text-slate-500 mt-0.5">{nextSitting.luogo}</div>
+            <div className="text-slate-500 text-sm">{nextSitting.luogo}</div>
             {nextSitting.titolo && (
               <div className="text-sm text-slate-700 mt-1 font-medium">{nextSitting.titolo}</div>
             )}
@@ -85,7 +109,7 @@ export default function Dashboard() {
               )}
               <Link
                 to={`/sedute/${nextSitting.id}`}
-                className="ml-auto text-sm btn-primary py-1 px-3"
+                className="ml-auto text-sm btn-primary py-1 px-3 min-h-[44px] flex items-center"
               >
                 Vai alla seduta
               </Link>
@@ -95,7 +119,7 @@ export default function Dashboard() {
           <div className="flex items-center justify-between gap-4">
             <p className="text-slate-500 text-sm">Nessuna seduta futura in programma.</p>
             {canManage && (
-              <Link to="/sedute" className="btn-primary py-1 px-3 text-sm">
+              <Link to="/sedute" className="btn-primary py-1 px-3 text-sm min-h-[44px] flex items-center">
                 Crea seduta
               </Link>
             )}
@@ -107,10 +131,11 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* Documenti recenti */}
         <div className="card">
-          <div className="flex items-center gap-2 mb-3">
-            <FileText className="w-5 h-5 text-brand-600" />
-            <h2 className="text-base font-semibold">Documenti recenti</h2>
-          </div>
+          <CardHeader
+            icon={FileClock}
+            title="Documenti recenti"
+            subtitle="Ultimi documenti caricati"
+          />
           {recentDocuments.length === 0 ? (
             <p className="text-slate-500 text-sm">Nessun documento recente.</p>
           ) : (
@@ -144,10 +169,13 @@ export default function Dashboard() {
 
         {/* Da analizzare */}
         <div className="card">
-          <div className="flex items-center gap-2 mb-3">
-            <AlertCircle className="w-5 h-5 text-orange-500" />
-            <h2 className="text-base font-semibold">Da analizzare</h2>
-          </div>
+          <CardHeader
+            icon={AlertTriangle}
+            title="Da analizzare"
+            subtitle="Documenti in attesa di revisione"
+            iconBg="bg-orange-50"
+            iconColor="text-orange-500"
+          />
           {documentsToAnalyze.length === 0 ? (
             <div className="flex flex-col items-center py-4 text-center">
               <CheckCircle className="w-8 h-8 text-green-400 mb-2" />
@@ -179,13 +207,14 @@ export default function Dashboard() {
 
         {/* Statistiche */}
         <div className="card">
-          <div className="flex items-center gap-2 mb-3">
-            <Clock className="w-5 h-5 text-brand-600" />
-            <h2 className="text-base font-semibold">Statistiche</h2>
-          </div>
+          <CardHeader
+            icon={Calendar}
+            title="Statistiche"
+            subtitle="Panoramica attivita'"
+          />
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-slate-50 rounded-lg p-3 text-center">
-              <FileText className="w-5 h-5 text-slate-500 mx-auto mb-1" />
+              <Pencil className="w-5 h-5 text-slate-500 mx-auto mb-1" />
               <div className="text-2xl font-bold text-slate-800">{counters.actsBozza}</div>
               <div className="text-xs text-slate-500 mt-0.5">Atti in bozza</div>
             </div>

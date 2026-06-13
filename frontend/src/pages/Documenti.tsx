@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Upload, FileText, Sparkles, Trash2 } from 'lucide-react';
 import { documentsApi } from '../api/endpoints';
 import { getAIErrorMessage } from '../api/aiError';
 
@@ -40,16 +41,24 @@ export default function Documenti() {
       <h1 className="page-title">Documenti</h1>
 
       <div className="card mb-4">
-        <h2 className="text-lg font-semibold mb-2">Carica un nuovo documento</h2>
-        <input
-          type="file"
-          accept=".pdf,.doc,.docx,.txt,.md"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) uploadM.mutate(f);
-            e.target.value = '';
-          }}
-        />
+        <h2 className="text-lg font-semibold mb-3">Carica un nuovo documento</h2>
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input
+            type="file"
+            accept=".pdf,.doc,.docx,.txt,.md"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) uploadM.mutate(f);
+              e.target.value = '';
+            }}
+          />
+          <span className="btn-secondary flex items-center gap-2 min-h-[44px]">
+            <Upload className="w-4 h-4" />
+            Scegli file
+          </span>
+          <span className="text-sm text-slate-500">PDF, DOC, DOCX, TXT, MD</span>
+        </label>
         {uploadM.isPending && <div className="text-sm text-slate-500 mt-2">Caricamento ed estrazione testo...</div>}
       </div>
 
@@ -63,15 +72,25 @@ export default function Documenti() {
           ) : (
             <ul className="divide-y divide-slate-100">
               {docs.data.map((d) => (
-                <li key={d.id} className="py-2 flex justify-between items-center">
-                  <button onClick={() => setOpenId(d.id)} className="text-left hover:underline">
-                    <div className="font-medium">{d.originalName}</div>
-                    <div className="text-xs text-slate-500">
-                      {new Date(d.createdAt).toLocaleString('it-IT')} {d.hasSummary && '- riassunto disponibile'}
+                <li key={d.id} className="py-2 flex justify-between items-center gap-2">
+                  <button
+                    onClick={() => setOpenId(d.id)}
+                    className="text-left hover:text-brand-700 flex-1 min-w-0 min-h-[44px] flex flex-col justify-center"
+                  >
+                    <div className="flex items-center gap-2">
+                      <FileText className="w-4 h-4 text-slate-400 flex-shrink-0" />
+                      <span className="font-medium truncate">{d.originalName}</span>
+                    </div>
+                    <div className="text-xs text-slate-500 mt-0.5 ml-6">
+                      {new Date(d.createdAt).toLocaleString('it-IT')}
+                      {d.hasSummary && ' · riassunto disponibile'}
                     </div>
                   </button>
-                  <button className="btn-secondary text-xs" onClick={() => delM.mutate(d.id)}>
-                    Elimina
+                  <button
+                    className="btn-secondary text-xs flex items-center gap-1.5 min-h-[44px] flex-shrink-0"
+                    onClick={() => delM.mutate(d.id)}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
                   </button>
                 </li>
               ))}
@@ -91,7 +110,12 @@ export default function Documenti() {
               <h2 className="text-lg font-semibold mb-1">{detail.data.originalName}</h2>
               <div className="text-xs text-slate-500 mb-3">{detail.data.type}</div>
               <div className="mb-3">
-                <button className="btn-primary text-sm" disabled={summM.isPending} onClick={() => { setAiError(null); summM.mutate(detail.data!.id); }}>
+                <button
+                  className="btn-primary text-sm flex items-center gap-2 min-h-[44px]"
+                  disabled={summM.isPending}
+                  onClick={() => { setAiError(null); summM.mutate(detail.data!.id); }}
+                >
+                  <Sparkles className="w-4 h-4" />
                   {summM.isPending ? 'Generazione...' : detail.data.summary ? 'Rigenera riassunto AI' : 'Genera riassunto AI'}
                 </button>
               </div>

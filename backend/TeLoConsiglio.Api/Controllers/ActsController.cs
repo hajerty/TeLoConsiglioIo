@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TeLoConsiglio.Api.Dtos;
+using TeLoConsiglio.Api.Auth;
 using TeLoConsiglio.Domain.Entities;
 using TeLoConsiglio.Infrastructure.Data;
 using TeLoConsiglio.Infrastructure.Services;
@@ -106,6 +107,7 @@ public class ActsController : ControllerBase
 
     [HttpPost("{id:guid}/generate-draft")]
     [HttpPost("{id:guid}/ai-draft")]
+    [BudgetGuard]
     public async Task<ActionResult<GenerateDraftResponse>> GenerateDraft(Guid id, [FromBody] GenerateDraftRequest req)
     {
         if (!_ai.IsConfigured)
@@ -140,10 +142,17 @@ public class ActsController : ControllerBase
             _ => a.Tipo.ToString()
         };
 
-        var system = $"Sei un esperto redattore di atti amministrativi italiani per consigli comunali, " +
-                     $"competente in TUEL D.Lgs. 267/2000, Costituzione, leggi regionali e regolamenti consiliari. " +
-                     $"Scrivi atti formali in italiano corretto, con la struttura tipica delle delibere comunali (Premessa, Visti, Considerato che, Dato atto, Tutto cio' premesso, Impegna/Delibera). " +
-                     $"Non includere meta-commenti, restituisci SOLO il testo dell'atto in markdown.";
+        var cacheableSystem = $@"Sei un esperto redattore di atti amministrativi italiani per consigli comunali, competente in TUEL D.Lgs. 267/2000, Costituzione, leggi regionali e regolamenti consiliari. Scrivi atti formali in italiano corretto, con la struttura tipica delle delibere comunali (Premessa, Visti, Considerato che, Dato atto, Tutto cio' premesso, Impegna/Delibera). Non includere meta-commenti, restituisci SOLO il testo dell'atto in markdown.
+
+LINEA POLITICA DEL CONSIGLIERE:
+{profile?.LineaPoliticaMd ?? "(non specificata)"}
+
+PUNTI DA METTERE IN EVIDENZA: {puntiText}
+
+ESTRATTO DAL PROGRAMMA ELETTORALE:
+{progText}";
+
+        var volatileSystem = "Redigi l'atto richiesto dall'utente attenendoti al contesto politico fornito.";
 
         var user = $@"Redigi una bozza di {tipoNome} con i seguenti elementi.
 
@@ -152,22 +161,15 @@ OGGETTO: {a.Oggetto}
 NOTE/CONTESTO: {a.ContextNotes ?? "(nessuna)"}
 {parentInfo}
 
-LINEA POLITICA DEL CONSIGLIERE:
-{profile?.LineaPoliticaMd ?? "(non specificata)"}
-
-PUNTI DA METTERE IN EVIDENZA: {puntiText}
-
-ESTRATTO DAL PROGRAMMA ELETTORALE:
-{progText}
-
 ISTRUZIONI AGGIUNTIVE: {req.AdditionalInstructions ?? "(nessuna)"}
 
 Produci ora il testo completo dell'atto in markdown.";
 
         try
         {
-            var text = await _ai.CompleteAsync(system, user, maxTokens: 4000);
-            return Ok(new GenerateDraftResponse(text));
+            var result = await _ai.CompleteWithUsageAsync(cacheableSystem, volatileSystem, user, maxTokens: 4000);
+            await LogUsageAsync(uid, "acts.ai-draft", result);
+            return Ok(new GenerateDraftResponse(result.Text));
         }
         catch (Exception ex)
         {
@@ -178,6 +180,7 @@ Produci ora il testo completo dell'atto in markdown.";
 
     [HttpPost("{id:guid}/suggest-legal-refs")]
     [HttpPost("{id:guid}/legal-refs/suggest")]
+    [BudgetGuard]
     public async Task<ActionResult<SuggestLegalRefsResponse>> SuggestLegalRefs(Guid id, [FromBody] SuggestLegalRefsRequest req)
     {
         if (!_ai.IsConfigured)
@@ -209,7 +212,9 @@ Restituisci ESCLUSIVAMENTE JSON nella forma:
 
         try
         {
-            var raw = await _ai.CompleteAsync(system, user, maxTokens: 2000);
+            var result = await _ai.CompleteWithUsageAsync(system, user, maxTokens: 2000);
+            await LogUsageAsync(uid, "acts.legal-refs.suggest", result);
+            var raw = result.Text;
             var json = ExtractJson(raw);
             using var doc = JsonDocument.Parse(json);
             var refs = doc.RootElement.GetProperty("references").EnumerateArray()
@@ -313,6 +318,21 @@ Restituisci ESCLUSIVAMENTE JSON nella forma:
         a.Revisions.OrderByDescending(r => r.CreatedAt).Select(r => new ActRevisionDto(r.Id, r.BodyMd, r.CreatedAt, r.AuthorId)).ToList(),
         a.LegalReferences.OrderByDescending(r => r.CreatedAt).Select(r => new LegalReferenceDto(r.Id, r.Citation, r.Description, r.Inserted, r.ConfirmedAt)).ToList()
     );
+
+    private async Task LogUsageAsync(string userId, string operation, AnthropicResult r)
+    {
+        _db.UsageLogs.Add(new UsageLog
+        {
+            UserId = userId,
+            Operation = operation,
+            Model = r.Model,
+            InputTokens = r.InputTokens,
+            OutputTokens = r.OutputTokens,
+            CachedInputTokens = r.CachedReadTokens,
+            EstimatedCostUsd = r.EstimatedCostUsd
+        });
+        await _db.SaveChangesAsync();
+    }
 
     private static string ExtractJson(string text)
     {

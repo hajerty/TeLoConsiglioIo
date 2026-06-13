@@ -106,6 +106,7 @@ public class DocumentsController : ControllerBase
     }
 
     [HttpPost("{id:guid}/summarize")]
+    [BudgetGuard]
     public async Task<ActionResult<DocumentSummaryDto>> Summarize(Guid id)
     {
         if (!_ai.IsConfigured)
@@ -122,19 +123,20 @@ public class DocumentsController : ControllerBase
             ? string.Join(", ", JsonSerializer.Deserialize<List<string>>(profile.PuntiEvidenzaJson) ?? new())
             : "";
 
-        var system = "Sei un assistente esperto di diritto degli enti locali italiani (TUEL D.Lgs. 267/2000) " +
-                     "e di tecnica legislativa. Devi assistere un consigliere comunale italiano. " +
-                     "Rispondi SEMPRE in italiano, in modo conciso, professionale, e SOLO in JSON valido seguendo lo schema richiesto.";
-
         var lineaPolitica = profile?.LineaPoliticaMd ?? "(non specificata)";
-        var bodyText = doc.ExtractedText.Length > 30000 ? doc.ExtractedText.Substring(0, 30000) + "\n[... testo troncato ...]" : doc.ExtractedText;
 
-        var user = $@"Analizza il seguente documento.
+        var cacheableSystem = $@"Sei un assistente esperto di diritto degli enti locali italiani (TUEL D.Lgs. 267/2000) e di tecnica legislativa. Devi assistere un consigliere comunale italiano. Rispondi SEMPRE in italiano, in modo conciso, professionale, e SOLO in JSON valido seguendo lo schema richiesto.
 
 LINEA POLITICA DEL CONSIGLIERE:
 {lineaPolitica}
 
-PUNTI DA METTERE IN EVIDENZA: {puntiText}
+PUNTI DA METTERE IN EVIDENZA: {puntiText}";
+
+        var volatileSystem = "Analizza il documento fornito dall'utente alla luce del contesto politico sopra.";
+
+        var bodyText = doc.ExtractedText.Length > 30000 ? doc.ExtractedText.Substring(0, 30000) + "\n[... testo troncato ...]" : doc.ExtractedText;
+
+        var user = $@"Analizza il seguente documento.
 
 DOCUMENTO:
 ---
@@ -150,7 +152,18 @@ Restituisci ESCLUSIVAMENTE un oggetto JSON con questa struttura:
 
         try
         {
-            var raw = await _ai.CompleteAsync(system, user, maxTokens: 4000);
+            var aiResult = await _ai.CompleteWithUsageAsync(cacheableSystem, volatileSystem, user, maxTokens: 4000);
+            var raw = aiResult.Text;
+            _db.UsageLogs.Add(new UsageLog
+            {
+                UserId = uid,
+                Operation = "documents.summarize",
+                Model = aiResult.Model,
+                InputTokens = aiResult.InputTokens,
+                OutputTokens = aiResult.OutputTokens,
+                CachedInputTokens = aiResult.CachedReadTokens,
+                EstimatedCostUsd = aiResult.EstimatedCostUsd
+            });
             var json = ExtractJson(raw);
             using var docJson = JsonDocument.Parse(json);
             var root = docJson.RootElement;

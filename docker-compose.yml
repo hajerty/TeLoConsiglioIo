@@ -39,6 +39,7 @@ services:
       MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET:-}
       FRONTEND_URL: ${Frontend__Url:-http://localhost:8080}
       ENABLE_SWAGGER: "true"
+      DOC_ENCRYPTION_KEY: ${DOC_ENCRYPTION_KEY:-}
     ports:
       - "5000:8080"
     volumes:

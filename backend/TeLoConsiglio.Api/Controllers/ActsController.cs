@@ -27,6 +27,7 @@ public class ActsController : ControllerBase
     private readonly ILogger<ActsController> _logger;
     private readonly IDocumentTextExtractor _extractor;
     private readonly IWebHostEnvironment _env;
+    private readonly IFileEncryptor _fileEncryptor;
 
     public ActsController(
         AppDbContext db,
@@ -34,9 +35,10 @@ public class ActsController : ControllerBase
         IAIService ai,
         ILogger<ActsController> logger,
         IDocumentTextExtractor extractor,
-        IWebHostEnvironment env)
+        IWebHostEnvironment env,
+        IFileEncryptor fileEncryptor)
     {
-        _db = db; _users = users; _ai = ai; _logger = logger; _extractor = extractor; _env = env;
+        _db = db; _users = users; _ai = ai; _logger = logger; _extractor = extractor; _env = env; _fileEncryptor = fileEncryptor;
     }
 
     private string GetUserId() => _users.GetUserId(User)!;
@@ -140,10 +142,19 @@ public class ActsController : ControllerBase
         Directory.CreateDirectory(dir);
         var safe = $"{Guid.NewGuid()}{ext}";
         var path = Path.Combine(dir, safe);
-        using (var s = System.IO.File.Create(path)) await file.CopyToAsync(s);
-
         var originalSafe = Path.GetFileName(file.FileName ?? "");
-        var text = await _extractor.ExtractTextAsync(path, originalSafe);
+        string text;
+        if (_fileEncryptor.IsEnabled)
+        {
+            await _fileEncryptor.EncryptToFileAsync(file.OpenReadStream(), path);
+            using var decryptedStream = await _fileEncryptor.OpenDecryptedReadAsync(path);
+            text = await _extractor.ExtractTextFromStreamAsync(decryptedStream, originalSafe);
+        }
+        else
+        {
+            using (var s = System.IO.File.Create(path)) await file.CopyToAsync(s);
+            text = await _extractor.ExtractTextAsync(path, originalSafe);
+        }
         const int maxExtractedChars = 200_000;
         if (text.Length > maxExtractedChars)
             text = text.Substring(0, maxExtractedChars) + "\n[... testo troncato ...]";
@@ -188,7 +199,9 @@ public class ActsController : ControllerBase
         var att = await _db.ActAttachments.FirstOrDefaultAsync(a => a.Id == attId && a.ActId == id);
         if (att == null || !System.IO.File.Exists(att.FilePath)) return NotFound();
 
-        var stream = System.IO.File.OpenRead(att.FilePath);
+        Stream stream = _fileEncryptor.IsLikelyEncrypted(att.FilePath)
+            ? await _fileEncryptor.OpenDecryptedReadAsync(att.FilePath)
+            : System.IO.File.OpenRead(att.FilePath);
         return File(stream, att.ContentType, att.OriginalName);
     }
 

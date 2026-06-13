@@ -24,6 +24,12 @@ services:
         value: "5.0"
       - key: ENABLE_SWAGGER
         value: "true"
+      - key: DOC_ENCRYPTION_KEY
+        generateValue: true
+        # NOTA: Render genera una stringa random — assicurarsi che sia esattamente 32 byte
+        # base64 (256 bit). Se la lunghezza non coincide, impostare manualmente con:
+        #   openssl rand -base64 32
+        # ATTENZIONE: se la chiave viene persa, i file cifrati diventano irrecuperabili.
       # Da impostare manualmente nella dashboard Render:
       # - ConnectionStrings__Default  (stringa Neon, formato Host=...;Port=5432;Database=...;Username=...;Password=...;SslMode=Require;Trust Server Certificate=true)
       # - Frontend__Url                (URL pubblico Netlify, es https://teloconsiglio.netlify.app)

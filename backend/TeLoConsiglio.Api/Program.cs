@@ -128,6 +128,8 @@ builder.Services.AddHttpClient<IAIService, GeminiAIService>(client =>
     client.Timeout = TimeSpan.FromSeconds(60);
 });
 builder.Services.AddSingleton<PartyManifestService>();
+builder.Services.AddSingleton<AesGcmFileEncryptor>();
+builder.Services.AddSingleton<IFileEncryptor>(sp => sp.GetRequiredService<AesGcmFileEncryptor>());
 
 // ----- API -----
 builder.Services.AddControllers().AddJsonOptions(opt =>
@@ -220,6 +222,20 @@ builder.Services.AddCors(opt =>
 });
 
 var app = builder.Build();
+
+// ----- Encryption startup warning -----
+{
+    var encryptor = app.Services.GetRequiredService<AesGcmFileEncryptor>();
+    encryptor.LogStartupWarningIfNeeded();
+    if (app.Environment.IsProduction() && !encryptor.IsEnabled)
+    {
+        var startupLogger = app.Services.GetRequiredService<ILogger<Program>>();
+        startupLogger.LogCritical(
+            "SICUREZZA: DOC_ENCRYPTION_KEY non impostata in Production. " +
+            "I file caricati dagli utenti sono salvati IN CHIARO su disco. " +
+            "Genera la chiave con 'openssl rand -base64 32' e impostala come variabile d'ambiente DOC_ENCRYPTION_KEY.");
+    }
+}
 
 // ----- DB migrate + seed -----
 using (var scope = app.Services.CreateScope())

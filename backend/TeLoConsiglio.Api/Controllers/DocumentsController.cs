@@ -22,10 +22,11 @@ public class DocumentsController : ControllerBase
     private readonly IAIService _ai;
     private readonly IWebHostEnvironment _env;
     private readonly ILogger<DocumentsController> _logger;
+    private readonly IFileEncryptor _fileEncryptor;
 
-    public DocumentsController(AppDbContext db, UserManager<ApplicationUser> users, IDocumentTextExtractor extractor, IAIService ai, IWebHostEnvironment env, ILogger<DocumentsController> logger)
+    public DocumentsController(AppDbContext db, UserManager<ApplicationUser> users, IDocumentTextExtractor extractor, IAIService ai, IWebHostEnvironment env, ILogger<DocumentsController> logger, IFileEncryptor fileEncryptor)
     {
-        _db = db; _users = users; _extractor = extractor; _ai = ai; _env = env; _logger = logger;
+        _db = db; _users = users; _extractor = extractor; _ai = ai; _env = env; _logger = logger; _fileEncryptor = fileEncryptor;
     }
 
     private string GetUserId() => _users.GetUserId(User)!;
@@ -73,9 +74,20 @@ public class DocumentsController : ControllerBase
         Directory.CreateDirectory(dir);
         var safe = $"{Guid.NewGuid()}{ext}";
         var path = Path.Combine(dir, safe);
-        using (var s = System.IO.File.Create(path)) await file.CopyToAsync(s);
         var originalSafe = Path.GetFileName(file.FileName ?? "");
-        var text = await _extractor.ExtractTextAsync(path, originalSafe);
+        string text;
+        if (_fileEncryptor.IsEnabled)
+        {
+            // Cifra su disco; decripta in-memory per l'estrazione testo.
+            await _fileEncryptor.EncryptToFileAsync(file.OpenReadStream(), path);
+            using var decryptedStream = await _fileEncryptor.OpenDecryptedReadAsync(path);
+            text = await _extractor.ExtractTextFromStreamAsync(decryptedStream, originalSafe);
+        }
+        else
+        {
+            using (var s = System.IO.File.Create(path)) await file.CopyToAsync(s);
+            text = await _extractor.ExtractTextAsync(path, originalSafe);
+        }
         // Tronca testo estratto per evitare bloat del DB
         const int maxExtractedChars = 1_000_000;
         if (text.Length > maxExtractedChars)

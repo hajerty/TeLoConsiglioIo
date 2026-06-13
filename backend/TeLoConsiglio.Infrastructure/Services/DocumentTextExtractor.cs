@@ -19,6 +19,24 @@ public class DocumentTextExtractor : IDocumentTextExtractor
         };
     }
 
+    public async Task<string> ExtractTextFromStreamAsync(Stream stream, string originalFileName, CancellationToken ct = default)
+    {
+        var ext = Path.GetExtension(originalFileName).ToLowerInvariant();
+        switch (ext)
+        {
+            case ".pdf":
+                return ExtractPdfFromStream(stream);
+            case ".docx":
+                return ExtractDocxFromStream(stream);
+            case ".txt":
+            case ".md":
+                using (var reader = new StreamReader(stream, leaveOpen: true))
+                    return await reader.ReadToEndAsync(ct);
+            default:
+                return string.Empty;
+        }
+    }
+
     private static string ExtractPdf(string path)
     {
         var sb = new StringBuilder();
@@ -30,9 +48,33 @@ public class DocumentTextExtractor : IDocumentTextExtractor
         return sb.ToString();
     }
 
+    private static string ExtractPdfFromStream(Stream stream)
+    {
+        var sb = new StringBuilder();
+        using var doc = PdfDocument.Open(stream);
+        foreach (var page in doc.GetPages())
+        {
+            sb.AppendLine(page.Text);
+        }
+        return sb.ToString();
+    }
+
     private static string ExtractDocx(string path)
     {
         using var doc = WordprocessingDocument.Open(path, false);
+        var body = doc.MainDocumentPart?.Document.Body;
+        if (body == null) return string.Empty;
+        var sb = new StringBuilder();
+        foreach (var p in body.Descendants<Paragraph>())
+        {
+            sb.AppendLine(p.InnerText);
+        }
+        return sb.ToString();
+    }
+
+    private static string ExtractDocxFromStream(Stream stream)
+    {
+        using var doc = WordprocessingDocument.Open(stream, false);
         var body = doc.MainDocumentPart?.Document.Body;
         if (body == null) return string.Empty;
         var sb = new StringBuilder();

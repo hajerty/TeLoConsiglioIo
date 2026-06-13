@@ -24,13 +24,15 @@ public class SittingsController : ControllerBase
     private readonly UserManager<ApplicationUser> _users;
     private readonly IDocumentTextExtractor _extractor;
     private readonly IWebHostEnvironment _env;
+    private readonly IFileEncryptor _fileEncryptor;
 
-    public SittingsController(AppDbContext db, UserManager<ApplicationUser> users, IDocumentTextExtractor extractor, IWebHostEnvironment env)
+    public SittingsController(AppDbContext db, UserManager<ApplicationUser> users, IDocumentTextExtractor extractor, IWebHostEnvironment env, IFileEncryptor fileEncryptor)
     {
         _db = db;
         _users = users;
         _extractor = extractor;
         _env = env;
+        _fileEncryptor = fileEncryptor;
     }
 
     private string? GetUserId() => _users.GetUserId(User);
@@ -219,9 +221,19 @@ public class SittingsController : ControllerBase
         Directory.CreateDirectory(dir);
         var safe = $"{Guid.NewGuid()}{ext}";
         var path = Path.Combine(dir, safe);
-        using (var s = System.IO.File.Create(path)) await file.CopyToAsync(s);
         var originalSafe = Path.GetFileName(file.FileName ?? "");
-        var text = await _extractor.ExtractTextAsync(path, originalSafe);
+        string text;
+        if (_fileEncryptor.IsEnabled)
+        {
+            await _fileEncryptor.EncryptToFileAsync(file.OpenReadStream(), path);
+            using var decryptedStream = await _fileEncryptor.OpenDecryptedReadAsync(path);
+            text = await _extractor.ExtractTextFromStreamAsync(decryptedStream, originalSafe);
+        }
+        else
+        {
+            using (var s = System.IO.File.Create(path)) await file.CopyToAsync(s);
+            text = await _extractor.ExtractTextAsync(path, originalSafe);
+        }
         const int maxExtractedChars = 1_000_000;
         if (text.Length > maxExtractedChars)
             text = text.Substring(0, maxExtractedChars) + "\n[... testo troncato ...]";

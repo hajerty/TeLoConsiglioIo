@@ -167,6 +167,10 @@ Tutte le rotte (eccetto `/api/auth/*` e `/health`) richiedono header `Authorizat
 - `GET /api/usage/me` - spesa AI dell'utente nel mese corrente, breakdown per operazione e per giorno, limite mensile
 - `GET /api/usage/admin` - (solo Admin) spesa AI di tutti gli utenti nel mese corrente
 
+### Admin
+
+- `GET /api/admin/encryption-status` - (solo Admin) stato cifratura documenti: `{ enabled, algorithm, filesEncrypted, filesPlain }`
+
 ## Costi e budget AI
 
 Il provider AI è **Google Gemini**. Sul free tier le chiamate sono **gratis** (zero USD):
@@ -292,6 +296,60 @@ Stack 100% free tier:
 - Neon free: 0.5 GB storage, branching limitato, compute autosuspend dopo 5 min (riprende automaticamente)
 - Netlify free: 100 GB/mese di banda, build 300 min/mese
 - OAuth Google/Microsoft: vanno configurati con i domini pubblici nei rispettivi cloud console
+
+## Crittografia documenti
+
+I file caricati dagli utenti (programmi elettorali, documenti, allegati atti, documenti ODG)
+possono essere cifrati a riposo con **AES-256-GCM**.
+
+### Algoritmo e formato file
+
+- Algoritmo: AES-256-GCM (cifratura autenticata, nessun rischio di manomissione silenziosa)
+- Formato binario: `[Magic 4B "TCE1"] [Nonce 12B] [Tag 16B] [Ciphertext N byte]`
+- La chiave è app-wide, letta da env var `DOC_ENCRYPTION_KEY` (base64 di 32 byte = 256 bit)
+
+### Generare e impostare la chiave
+
+```bash
+# Genera la chiave
+openssl rand -base64 32
+
+# Impostala in .env
+DOC_ENCRYPTION_KEY=<output del comando sopra>
+```
+
+### Conseguenze se la chiave viene persa
+
+> **ATTENZIONE**: se `DOC_ENCRYPTION_KEY` viene persa o modificata, **tutti i file cifrati
+> diventano irrecuperabili**. Salvare la chiave in un password manager o in un secret manager
+> (es. AWS Secrets Manager, HashiCorp Vault, Render secrets).
+
+### Retrocompatibilità
+
+Se la variabile non è impostata (o viene rimossa):
+- I file esistenti già in chiaro continuano a essere leggibili normalmente.
+- I nuovi file vengono salvati in chiaro (fallback sicuro, con log warning all'avvio).
+- All'avvio in Production appare un log `Critical` che avvisa dell'assenza di cifratura.
+
+Quando si abilita la chiave dopo che alcuni file erano in chiaro:
+- I file vecchi (senza magic `TCE1`) vengono letti correttamente in chiaro.
+- I nuovi file vengono cifrati.
+- È possibile verificare lo stato con l'endpoint diagnostico.
+
+### Endpoint diagnostico
+
+`GET /api/admin/encryption-status` (solo ruolo Admin)
+
+Risposta:
+
+```json
+{
+  "enabled": true,
+  "algorithm": "AES-256-GCM",
+  "filesEncrypted": 42,
+  "filesPlain": 5
+}
+```
 
 ## Note di sicurezza
 

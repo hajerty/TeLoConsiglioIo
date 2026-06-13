@@ -22,15 +22,17 @@ public class ProfileController : ControllerBase
     private readonly IDocumentTextExtractor _extractor;
     private readonly IWebHostEnvironment _env;
     private readonly PartyManifestService _partyManifests;
+    private readonly IFileEncryptor _fileEncryptor;
 
     public ProfileController(
         AppDbContext db,
         UserManager<ApplicationUser> users,
         IDocumentTextExtractor extractor,
         IWebHostEnvironment env,
-        PartyManifestService partyManifests)
+        PartyManifestService partyManifests,
+        IFileEncryptor fileEncryptor)
     {
-        _db = db; _users = users; _extractor = extractor; _env = env; _partyManifests = partyManifests;
+        _db = db; _users = users; _extractor = extractor; _env = env; _partyManifests = partyManifests; _fileEncryptor = fileEncryptor;
     }
 
     private string GetUserId() => _users.GetUserId(User) ?? throw new InvalidOperationException();
@@ -157,9 +159,19 @@ public class ProfileController : ControllerBase
         Directory.CreateDirectory(dir);
         var safe = $"{Guid.NewGuid()}{ext}";
         var path = Path.Combine(dir, safe);
-        using (var s = System.IO.File.Create(path)) await file.CopyToAsync(s);
         var originalSafe = Path.GetFileName(file.FileName ?? "");
-        var text = await _extractor.ExtractTextAsync(path, originalSafe);
+        string text;
+        if (_fileEncryptor.IsEnabled)
+        {
+            await _fileEncryptor.EncryptToFileAsync(file.OpenReadStream(), path);
+            using var decryptedStream = await _fileEncryptor.OpenDecryptedReadAsync(path);
+            text = await _extractor.ExtractTextFromStreamAsync(decryptedStream, originalSafe);
+        }
+        else
+        {
+            using (var s = System.IO.File.Create(path)) await file.CopyToAsync(s);
+            text = await _extractor.ExtractTextAsync(path, originalSafe);
+        }
         const int maxExtractedChars = 1_000_000;
         if (text.Length > maxExtractedChars)
             text = text.Substring(0, maxExtractedChars) + "\n[... testo troncato ...]";
@@ -193,7 +205,9 @@ public class ProfileController : ControllerBase
         var uid = GetUserId();
         var prog = await _db.ElectoralPrograms.FirstOrDefaultAsync(p => p.Id == id && p.UserId == uid);
         if (prog == null || !System.IO.File.Exists(prog.FilePath)) return NotFound();
-        var stream = System.IO.File.OpenRead(prog.FilePath);
+        Stream stream = _fileEncryptor.IsLikelyEncrypted(prog.FilePath)
+            ? await _fileEncryptor.OpenDecryptedReadAsync(prog.FilePath)
+            : System.IO.File.OpenRead(prog.FilePath);
         return File(stream, "application/octet-stream", prog.OriginalName);
     }
 }

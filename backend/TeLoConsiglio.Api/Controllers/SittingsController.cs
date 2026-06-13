@@ -2,9 +2,11 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using TeLoConsiglio.Api.Auth;
 using TeLoConsiglio.Api.Dtos;
 using TeLoConsiglio.Domain.Entities;
 using TeLoConsiglio.Infrastructure.Data;
+using TeLoConsiglio.Infrastructure.Services;
 
 namespace TeLoConsiglio.Api.Controllers;
 
@@ -15,10 +17,15 @@ public class SittingsController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly UserManager<ApplicationUser> _users;
+    private readonly IDocumentTextExtractor _extractor;
+    private readonly IWebHostEnvironment _env;
 
-    public SittingsController(AppDbContext db, UserManager<ApplicationUser> users)
+    public SittingsController(AppDbContext db, UserManager<ApplicationUser> users, IDocumentTextExtractor extractor, IWebHostEnvironment env)
     {
-        _db = db; _users = users;
+        _db = db;
+        _users = users;
+        _extractor = extractor;
+        _env = env;
     }
 
     private string? GetUserId() => _users.GetUserId(User);
@@ -149,13 +156,83 @@ public class SittingsController : ControllerBase
         return NoContent();
     }
 
+    /// <summary>
+    /// Carica un documento specifico per un punto ODG.
+    /// Crea un Document (Type=Documento), estrae il testo e collega AgendaItem.DocumentId.
+    /// </summary>
+    [HttpPost("agenda/{itemId:guid}/document")]
+    [RequestSizeLimit(UploadValidator.MaxSizeBytes)]
+    public async Task<ActionResult<AgendaItemDto>> UploadAgendaDocument(Guid itemId, IFormFile file)
+    {
+        var uid = GetUserId();
+        if (uid == null) return Unauthorized();
+
+        var item = await _db.AgendaItems
+            .Include(i => i.Assignments)
+            .Include(i => i.Sitting)
+            .FirstOrDefaultAsync(x => x.Id == itemId);
+        if (item == null || item.Sitting == null || item.Sitting.CreatedById != uid) return NotFound();
+
+        if (file == null) return BadRequest(new { error = "File mancante" });
+        var (ok, error, ext) = UploadValidator.Validate(file);
+        if (!ok) return BadRequest(new { error });
+
+        var dir = Path.Combine(_env.ContentRootPath, "uploads", "documents", uid);
+        Directory.CreateDirectory(dir);
+        var safe = $"{Guid.NewGuid()}{ext}";
+        var path = Path.Combine(dir, safe);
+        using (var s = System.IO.File.Create(path)) await file.CopyToAsync(s);
+        var originalSafe = Path.GetFileName(file.FileName ?? "");
+        var text = await _extractor.ExtractTextAsync(path, originalSafe);
+        const int maxExtractedChars = 1_000_000;
+        if (text.Length > maxExtractedChars)
+            text = text.Substring(0, maxExtractedChars) + "\n[... testo troncato ...]";
+
+        var doc = new Document
+        {
+            OwnerId = uid,
+            FilePath = path,
+            OriginalName = originalSafe,
+            ExtractedText = text,
+            Type = DocumentType.Documento
+        };
+        _db.Documents.Add(doc);
+        item.DocumentId = doc.Id;
+        await _db.SaveChangesAsync();
+
+        await _db.Entry(item).Collection(i => i.Assignments).Query().Include(a => a.User).LoadAsync();
+        return Ok(ToItemDto(item));
+    }
+
+    /// <summary>
+    /// Aggiorna lo stato di un punto ODG.
+    /// Solo il creatore della seduta o Admin.
+    /// </summary>
+    [HttpPut("agenda/{itemId:guid}/status")]
+    public async Task<ActionResult<AgendaItemDto>> UpdateAgendaItemStatus(Guid itemId, [FromBody] AgendaItemStatusUpdateDto dto)
+    {
+        var uid = GetUserId();
+        if (uid == null) return Unauthorized();
+
+        var item = await _db.AgendaItems
+            .Include(i => i.Assignments)
+                .ThenInclude(a => a.User)
+            .Include(i => i.Sitting)
+            .FirstOrDefaultAsync(x => x.Id == itemId);
+        if (item == null || item.Sitting == null || item.Sitting.CreatedById != uid) return NotFound();
+
+        item.Status = dto.Status;
+        await _db.SaveChangesAsync();
+        return Ok(ToItemDto(item));
+    }
+
     private static SittingDetailDto ToDetail(Sitting s) => new(
         s.Id, s.Data, s.Luogo, s.Titolo,
         s.AgendaItems.OrderBy(i => i.Ordine).Select(ToItemDto).ToList()
     );
 
     private static AgendaItemDto ToItemDto(AgendaItem i) => new(
-        i.Id, i.Ordine, i.Descrizione, i.Decisione, i.Motivazione, i.ActId,
+        i.Id, i.Ordine, i.Descrizione, i.Decisione, i.Motivazione, i.ActId, i.DocumentId, i.Status,
         i.Assignments.Select(a => new AssignedUserDto(a.UserId, a.User?.Email ?? "", a.User?.FullName ?? "")).ToList()
     );
 }

@@ -45,18 +45,50 @@ public class AuthController : ControllerBase
         var existing = await _users.FindByEmailAsync(dto.Email);
         if (existing != null) return Conflict(new { error = "Email gia' registrata" });
 
+        // Resolve gruppo/comune from invitation if provided
+        string? resolvedGruppo = dto.Gruppo;
+        string resolvedComune = dto.Comune;
+        Invitation? invitation = null;
+
+        if (!string.IsNullOrWhiteSpace(dto.InvitationToken))
+        {
+            invitation = await _db.Invitations.FirstOrDefaultAsync(i =>
+                i.Token == dto.InvitationToken &&
+                i.ConsumedAt == null &&
+                i.RevokedAt == null &&
+                i.ExpiresAt > DateTime.UtcNow);
+
+            if (invitation == null)
+                return BadRequest(new { error = "Token di invito non valido, scaduto o gia' utilizzato." });
+
+            // Invitation can pre-fill gruppo and comune if not explicitly provided
+            if (string.IsNullOrWhiteSpace(resolvedGruppo) && !string.IsNullOrWhiteSpace(invitation.Gruppo))
+                resolvedGruppo = invitation.Gruppo;
+            if (!string.IsNullOrWhiteSpace(invitation.Comune))
+                resolvedComune = invitation.Comune;
+        }
+
         var user = new ApplicationUser
         {
             UserName = dto.Email,
             Email = dto.Email,
             FullName = dto.FullName,
-            Comune = dto.Comune,
+            Comune = resolvedComune,
             Partito = dto.Partito,
+            Gruppo = resolvedGruppo,
             EmailConfirmed = true
         };
         var res = await _users.CreateAsync(user, dto.Password);
         if (!res.Succeeded) return BadRequest(new { errors = res.Errors.Select(e => e.Description) });
+
         await _users.AddToRoleAsync(user, Roles.Consigliere);
+
+        // Mark invitation consumed
+        if (invitation != null)
+        {
+            invitation.ConsumedAt = DateTime.UtcNow;
+            await _db.SaveChangesAsync();
+        }
 
         return Ok(await BuildAuthResponse(user));
     }
@@ -113,7 +145,7 @@ public class AuthController : ControllerBase
         var user = await _users.GetUserAsync(User);
         if (user == null) return Unauthorized();
         var roles = await _users.GetRolesAsync(user);
-        return Ok(new UserDto(user.Id, user.Email ?? "", user.FullName, user.Comune, user.Partito, roles));
+        return Ok(new UserDto(user.Id, user.Email ?? "", user.FullName, user.Comune, user.Partito, user.Gruppo, roles));
     }
 
     [Authorize]
@@ -145,6 +177,6 @@ public class AuthController : ControllerBase
         }
         var roles = await _users.GetRolesAsync(user);
         return new AuthResponseDto(token, exp, rtStr,
-            new UserDto(user.Id, user.Email ?? "", user.FullName, user.Comune, user.Partito, roles));
+            new UserDto(user.Id, user.Email ?? "", user.FullName, user.Comune, user.Partito, user.Gruppo, roles));
     }
 }

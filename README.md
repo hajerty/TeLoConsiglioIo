@@ -93,10 +93,10 @@ Tutte le rotte (eccetto `/api/auth/*` e `/health`) richiedono header `Authorizat
 ### Autenticazione
 
 - `GET  /api/auth/providers` - elenco provider attivi (password + Google/MS opzionali)
-- `POST /api/auth/register` - registrazione consigliere
+- `POST /api/auth/register` - registrazione consigliere (body: `email, password, fullName, comune, partito, gruppo?, invitationToken?`)
 - `POST /api/auth/login` - login con email/password
 - `POST /api/auth/refresh` - refresh token
-- `GET  /api/auth/me` - utente corrente
+- `GET  /api/auth/me` - utente corrente (espone `comune, partito, gruppo, roles`)
 
 ### Profilo politico
 
@@ -135,6 +135,15 @@ Tutte le rotte (eccetto `/api/auth/*` e `/health`) richiedono header `Authorizat
 - `POST /api/sittings/{id}/agenda`
 - `PUT  /api/sittings/agenda/{itemId}`
 - `DELETE /api/sittings/agenda/{itemId}`
+- `POST /api/sittings/agenda/{itemId}/document` - carica documento per un punto ODG (multipart, stessa whitelist upload)
+- `PUT  /api/sittings/agenda/{itemId}/status` - aggiorna stato punto ODG (`DaAnalizzare|Analizzata|ApprovataPerSeduta`)
+
+### Inviti
+
+- `POST /api/invitations` - crea invito (solo Capogruppo/Vice/Admin; body: `{nome, cognome, email, gruppo?, comune?}`; risposta: `{token, url}`)
+- `GET  /api/invitations` - lista inviti emessi (solo Capogruppo/Vice/Admin; paginata con `?page=&pageSize=`; header `X-Total-Count`)
+- `GET  /api/invitations/{token}` - dati pubblici invito per pre-fillare form registrazione (no auth; 404 se scaduto/revocato)
+- `DELETE /api/invitations/{id}` - revoca invito (solo emittente o Admin)
 
 ### Utenti
 

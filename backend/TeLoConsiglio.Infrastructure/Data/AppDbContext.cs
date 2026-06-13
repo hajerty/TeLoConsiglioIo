@@ -20,6 +20,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<AgendaItemAssignment> AgendaItemAssignments => Set<AgendaItemAssignment>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
     public DbSet<UsageLog> UsageLogs => Set<UsageLog>();
+    public DbSet<Invitation> Invitations => Set<Invitation>();
 
     protected override void OnModelCreating(ModelBuilder b)
     {
@@ -98,6 +99,15 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             .WithMany()
             .HasForeignKey(i => i.ActId)
             .OnDelete(DeleteBehavior.SetNull);
+
+        b.Entity<AgendaItem>()
+            .HasOne(i => i.Document)
+            .WithMany()
+            .HasForeignKey(i => i.DocumentId)
+            .OnDelete(DeleteBehavior.SetNull);
+
+        b.Entity<Invitation>().HasIndex(i => i.Token).IsUnique();
+        b.Entity<Invitation>().HasIndex(i => i.InvitedByUserId);
 
         b.Entity<AgendaItemAssignment>()
             .HasKey(a => new { a.AgendaItemId, a.UserId });

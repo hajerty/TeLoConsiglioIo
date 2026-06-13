@@ -109,7 +109,13 @@ if (!string.IsNullOrWhiteSpace(msClientId) && !string.IsNullOrWhiteSpace(msClien
     });
 }
 
-builder.Services.AddAuthorization();
+builder.Services.AddAuthorization(opt =>
+{
+    opt.AddPolicy("RequireCapogruppoOrAdmin", p =>
+        p.RequireRole(Roles.Admin, Roles.Capogruppo, Roles.Vice));
+    opt.AddPolicy("RequireAdminOnly", p =>
+        p.RequireRole(Roles.Admin));
+});
 
 // ----- App services -----
 builder.Services.AddScoped<IDocumentTextExtractor, DocumentTextExtractor>();

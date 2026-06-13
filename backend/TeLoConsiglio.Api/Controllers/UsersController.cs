@@ -45,7 +45,7 @@ public class UsersController : ControllerBase
         foreach (var u in list)
         {
             var roles = await _users.GetRolesAsync(u);
-            dto.Add(new UserDto(u.Id, u.Email ?? "", u.FullName, u.Comune, u.Partito, roles));
+            dto.Add(new UserDto(u.Id, u.Email ?? "", u.FullName, u.Comune, u.Partito, u.Gruppo, roles));
         }
         return Ok(dto);
     }

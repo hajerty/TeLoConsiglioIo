@@ -9,5 +9,7 @@ public record SittingDetailDto(Guid Id, DateTime Data, string Luogo, string Tito
 
 public record AgendaItemCreateDto(int Ordine, [Required] string Descrizione, AgendaDecision Decisione, string? Motivazione, Guid? ActId, List<string>? AssignedUserIds);
 public record AgendaItemUpdateDto(int Ordine, string Descrizione, AgendaDecision Decisione, string? Motivazione, Guid? ActId, List<string>? AssignedUserIds);
-public record AgendaItemDto(Guid Id, int Ordine, string Descrizione, AgendaDecision Decisione, string Motivazione, Guid? ActId, List<AssignedUserDto> AssignedUsers);
+public record AgendaItemDto(Guid Id, int Ordine, string Descrizione, AgendaDecision Decisione, string Motivazione, Guid? ActId, Guid? DocumentId, AgendaItemStatus Status, List<AssignedUserDto> AssignedUsers);
 public record AssignedUserDto(string UserId, string Email, string FullName);
+
+public record AgendaItemStatusUpdateDto([Required] AgendaItemStatus Status);

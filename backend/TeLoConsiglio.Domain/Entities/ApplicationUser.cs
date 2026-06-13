@@ -1,12 +1,22 @@
 using Microsoft.AspNetCore.Identity;
+using System.ComponentModel.DataAnnotations;
 
 namespace TeLoConsiglio.Domain.Entities;
 
 public class ApplicationUser : IdentityUser
 {
     public string FullName { get; set; } = string.Empty;
+
+    [MaxLength(200)]
     public string? Comune { get; set; }
+
+    [MaxLength(100)]
     public string? Partito { get; set; }
+
+    /// <summary>Nome del gruppo consiliare, es. "Gruppo PD". Nullable.</summary>
+    [MaxLength(200)]
+    public string? Gruppo { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
     public PoliticalProfile? PoliticalProfile { get; set; }

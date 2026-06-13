@@ -1,0 +1,42 @@
+{
+  "name": "TeLoConsiglio.io",
+  "image": "mcr.microsoft.com/devcontainers/universal:2",
+  "features": {
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {},
+    "ghcr.io/devcontainers/features/dotnet:2": { "version": "8.0" },
+    "ghcr.io/devcontainers/features/node:1": { "version": "22" }
+  },
+  "forwardPorts": [5000, 8080, 5173, 5432],
+  "portsAttributes": {
+    "5000": {
+      "label": "Backend API",
+      "visibility": "public",
+      "onAutoForward": "notify"
+    },
+    "8080": {
+      "label": "Frontend (nginx)",
+      "visibility": "public",
+      "onAutoForward": "openBrowser"
+    },
+    "5173": {
+      "label": "Frontend (vite dev)",
+      "visibility": "public"
+    },
+    "5432": {
+      "label": "PostgreSQL",
+      "visibility": "private"
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-dotnettools.csdevkit",
+        "ms-azuretools.vscode-docker",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss"
+      ]
+    }
+  }
+}

@@ -1,6 +1,9 @@
 import { NavLink } from 'react-router-dom';
+import { useAuthStore } from '../auth/store';
 
-const items = [
+const ADMIN_ROLES = ['Admin', 'Capogruppo', 'Vice'];
+
+const baseItems = [
   { to: '/', label: 'Dashboard', icon: 'D' },
   { to: '/profilo', label: 'Profilo politico', icon: 'P' },
   { to: '/documenti', label: 'Documenti', icon: 'F' },
@@ -10,6 +13,13 @@ const items = [
 ];
 
 export function Sidebar() {
+  const user = useAuthStore((s) => s.user);
+  const canManage = user?.roles?.some((r) => ADMIN_ROLES.includes(r)) ?? false;
+
+  const items = canManage
+    ? [...baseItems, { to: '/consiglieri', label: 'Gestione consiglieri', icon: 'G' }]
+    : baseItems;
+
   return (
     <aside className="w-64 bg-slate-900 text-slate-100 flex flex-col flex-shrink-0">
       <div className="p-5 border-b border-slate-800">

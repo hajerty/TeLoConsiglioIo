@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { Layout } from './components/Layout';
 import { ProtectedRoute } from './auth/ProtectedRoute';
+import { RoleProtectedRoute } from './auth/RoleProtectedRoute';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
@@ -11,6 +12,7 @@ import AttoEditor from './pages/AttoEditor';
 import Archivio from './pages/Archivio';
 import Sedute from './pages/Sedute';
 import SedutaDettaglio from './pages/SedutaDettaglio';
+import GestioneConsiglieri from './pages/GestioneConsiglieri';
 
 export const router = createBrowserRouter([
   { path: '/login', element: <Login /> },
@@ -29,6 +31,12 @@ export const router = createBrowserRouter([
           { path: '/archivio', element: <Archivio /> },
           { path: '/sedute', element: <Sedute /> },
           { path: '/sedute/:id', element: <SedutaDettaglio /> },
+          {
+            element: <RoleProtectedRoute allowedRoles={['Admin', 'Capogruppo', 'Vice']} redirectTo="/" />,
+            children: [
+              { path: '/consiglieri', element: <GestioneConsiglieri /> },
+            ],
+          },
         ],
       },
     ],

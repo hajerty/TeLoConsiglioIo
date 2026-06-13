@@ -1,4 +1,4 @@
-export type Role = 'Admin' | 'Consigliere';
+export type Role = 'Admin' | 'Consigliere' | 'Capogruppo' | 'Vice';
 
 export interface User {
   id: string;
@@ -6,6 +6,7 @@ export interface User {
   fullName: string;
   comune?: string | null;
   partito?: string | null;
+  gruppo?: string | null;
   roles: string[];
 }
 
@@ -111,6 +112,8 @@ export interface AssignedUser {
 
 export type Decisione = 'DaDecidere' | 'Approvare' | 'Respingere' | 'Astenersi';
 
+export type AgendaItemStatus = 'DaAnalizzare' | 'Analizzata' | 'ApprovataPerSeduta';
+
 export interface AgendaItem {
   id: string;
   ordine: number;
@@ -118,7 +121,33 @@ export interface AgendaItem {
   decisione: Decisione;
   motivazione: string;
   actId?: string | null;
+  documentId?: string | null;
+  status: AgendaItemStatus;
   assignedUsers: AssignedUser[];
+}
+
+export interface Invitation {
+  id: string;
+  token: string;
+  email: string;
+  nome: string;
+  cognome: string;
+  comune?: string | null;
+  gruppo?: string | null;
+  createdAt: string;
+  expiresAt: string;
+  consumedAt: string | null;
+  revokedAt: string | null;
+  status: 'Pending' | 'Consumed' | 'Expired' | 'Revoked';
+}
+
+export interface InvitationPublic {
+  email: string;
+  nome: string;
+  cognome: string;
+  comune?: string | null;
+  gruppo?: string | null;
+  status: 'Pending' | 'Consumed' | 'Expired' | 'Revoked';
 }
 
 export interface SittingDetail {

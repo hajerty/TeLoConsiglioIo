@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { sittingsApi, usersApi } from '../api/endpoints';
-import type { Decisione } from '../api/types';
+import type { AgendaItemStatus, Decisione } from '../api/types';
 import { Modal } from '../components/Modal';
 
 const DECISIONI: Decisione[] = ['DaDecidere', 'Approvare', 'Respingere', 'Astenersi'];
@@ -14,9 +14,26 @@ const DECISIONE_LABELS: Record<Decisione, string> = {
   Astenersi: 'Astenersi',
 };
 
+const AGENDA_STATUSES: AgendaItemStatus[] = ['DaAnalizzare', 'Analizzata', 'ApprovataPerSeduta'];
+
+const AGENDA_STATUS_LABELS: Record<AgendaItemStatus, string> = {
+  DaAnalizzare: 'Da analizzare',
+  Analizzata: 'Analizzata',
+  ApprovataPerSeduta: 'Approvata per seduta',
+};
+
+const AGENDA_STATUS_COLORS: Record<AgendaItemStatus, string> = {
+  DaAnalizzare: 'bg-slate-100 text-slate-700',
+  Analizzata: 'bg-blue-100 text-blue-800',
+  ApprovataPerSeduta: 'bg-green-100 text-green-800',
+};
+
 export default function SedutaDettaglio() {
   const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
+  const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const [statusDropdown, setStatusDropdown] = useState<string | null>(null);
+
   const detail = useQuery({
     queryKey: ['sitting', id],
     queryFn: () => sittingsApi.get(id!),
@@ -58,6 +75,21 @@ export default function SedutaDettaglio() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['sitting', id] }),
   });
 
+  const updateStatusM = useMutation({
+    mutationFn: ({ itemId, status }: { itemId: string; status: AgendaItemStatus }) =>
+      sittingsApi.updateAgendaStatus(itemId, status),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['sitting', id] });
+      setStatusDropdown(null);
+    },
+  });
+
+  const uploadDocM = useMutation({
+    mutationFn: ({ itemId, file }: { itemId: string; file: File }) =>
+      sittingsApi.uploadAgendaDocument(itemId, file),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['sitting', id] }),
+  });
+
   if (detail.isLoading) return <div className="text-slate-500">Caricamento...</div>;
   if (!detail.data) return <div className="text-slate-500">Seduta non trovata.</div>;
 
@@ -82,61 +114,135 @@ export default function SedutaDettaglio() {
           <div className="text-slate-500">Nessun punto ancora. Aggiungine uno.</div>
         ) : (
           <ul className="space-y-3">
-            {detail.data.items.map((it) => (
-              <li key={it.id} className="border border-slate-200 rounded p-3 bg-slate-50">
-                <div className="flex items-center justify-between">
-                  <div className="font-semibold">{it.ordine}. {it.descrizione}</div>
-                  <button className="text-xs text-red-600" onClick={() => removeM.mutate(it.id)}>Rimuovi</button>
-                </div>
-                <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
-                  <div>
-                    <label className="label">Decisione</label>
-                    <select
-                      className="input"
-                      value={it.decisione}
-                      onChange={(e) =>
-                        updateM.mutate({
-                          itemId: it.id,
-                          data: {
-                            ordine: it.ordine,
-                            descrizione: it.descrizione,
-                            decisione: e.target.value as Decisione,
-                            motivazione: it.motivazione,
-                            assignedUserIds: it.assignedUsers.map((u) => u.userId),
-                          },
-                        })
-                      }
-                    >
-                      {DECISIONI.map((d) => <option key={d} value={d}>{DECISIONE_LABELS[d]}</option>)}
-                    </select>
+            {detail.data.items.map((it) => {
+              const itemStatus: AgendaItemStatus = it.status ?? 'DaAnalizzare';
+              return (
+                <li key={it.id} className="border border-slate-200 rounded p-3 bg-slate-50">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="font-semibold">{it.ordine}. {it.descrizione}</div>
+                    <div className="flex items-center gap-2">
+                      {/* Badge status con dropdown */}
+                      <div className="relative">
+                        <button
+                          className={`text-xs px-2 py-0.5 rounded-full font-medium cursor-pointer ${AGENDA_STATUS_COLORS[itemStatus]}`}
+                          onClick={() => setStatusDropdown(statusDropdown === it.id ? null : it.id)}
+                        >
+                          {AGENDA_STATUS_LABELS[itemStatus]}
+                        </button>
+                        {statusDropdown === it.id && (
+                          <div className="absolute right-0 top-full mt-1 bg-white border border-slate-200 rounded shadow-lg z-10 min-w-max">
+                            {AGENDA_STATUSES.map((s) => (
+                              <button
+                                key={s}
+                                className={`block w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 ${
+                                  s === itemStatus ? 'font-semibold text-brand-600' : 'text-slate-700'
+                                }`}
+                                onClick={() => updateStatusM.mutate({ itemId: it.id, status: s })}
+                                disabled={updateStatusM.isPending}
+                              >
+                                {AGENDA_STATUS_LABELS[s]}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <button className="text-xs text-red-600" onClick={() => removeM.mutate(it.id)}>Rimuovi</button>
+                    </div>
                   </div>
-                  <div className="md:col-span-2">
-                    <label className="label">Motivazione</label>
+
+                  <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-2 text-sm">
+                    <div>
+                      <label className="label">Decisione</label>
+                      <select
+                        className="input"
+                        value={it.decisione}
+                        onChange={(e) =>
+                          updateM.mutate({
+                            itemId: it.id,
+                            data: {
+                              ordine: it.ordine,
+                              descrizione: it.descrizione,
+                              decisione: e.target.value as Decisione,
+                              motivazione: it.motivazione,
+                              assignedUserIds: it.assignedUsers.map((u) => u.userId),
+                            },
+                          })
+                        }
+                      >
+                        {DECISIONI.map((d) => <option key={d} value={d}>{DECISIONE_LABELS[d]}</option>)}
+                      </select>
+                    </div>
+                    <div className="md:col-span-2">
+                      <label className="label">Motivazione</label>
+                      <input
+                        className="input"
+                        defaultValue={it.motivazione}
+                        onBlur={(e) =>
+                          updateM.mutate({
+                            itemId: it.id,
+                            data: {
+                              ordine: it.ordine,
+                              descrizione: it.descrizione,
+                              decisione: it.decisione,
+                              motivazione: e.target.value,
+                              assignedUserIds: it.assignedUsers.map((u) => u.userId),
+                            },
+                          })
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  {/* Documento allegato */}
+                  <div className="mt-2 flex items-center gap-2 flex-wrap">
+                    {it.documentId ? (
+                      <>
+                        <a
+                          href={`/documenti/${it.documentId}`}
+                          className="text-xs text-brand-600 hover:underline"
+                        >
+                          Vai al documento
+                        </a>
+                        <button
+                          className="text-xs text-slate-500 hover:text-slate-700"
+                          onClick={() => fileInputRefs.current[it.id]?.click()}
+                          disabled={uploadDocM.isPending}
+                        >
+                          Sostituisci
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        className="text-xs btn-secondary py-0.5"
+                        onClick={() => fileInputRefs.current[it.id]?.click()}
+                        disabled={uploadDocM.isPending}
+                      >
+                        Carica documento
+                      </button>
+                    )}
                     <input
-                      className="input"
-                      defaultValue={it.motivazione}
-                      onBlur={(e) =>
-                        updateM.mutate({
-                          itemId: it.id,
-                          data: {
-                            ordine: it.ordine,
-                            descrizione: it.descrizione,
-                            decisione: it.decisione,
-                            motivazione: e.target.value,
-                            assignedUserIds: it.assignedUsers.map((u) => u.userId),
-                          },
-                        })
-                      }
+                      type="file"
+                      className="hidden"
+                      ref={(el) => { fileInputRefs.current[it.id] = el; }}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) uploadDocM.mutate({ itemId: it.id, file });
+                        e.target.value = '';
+                      }}
                     />
+                    {uploadDocM.isPending && (
+                      <span className="text-xs text-slate-500">Caricamento...</span>
+                    )}
                   </div>
-                </div>
-                {it.assignedUsers.length > 0 && (
-                  <div className="text-xs mt-2 text-slate-600">
-                    Assegnatari: {it.assignedUsers.map((u) => u.fullName || u.email).join(', ')}
-                  </div>
-                )}
-              </li>
-            ))}
+
+                  {it.assignedUsers.length > 0 && (
+                    <div className="text-xs mt-2 text-slate-600">
+                      Assegnatari: {it.assignedUsers.map((u) => u.fullName || u.email).join(', ')}
+                    </div>
+                  )}
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

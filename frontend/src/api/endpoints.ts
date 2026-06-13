@@ -4,11 +4,14 @@ import type {
   ActListItem,
   ActType,
   ActStatus,
+  AgendaItemStatus,
   AuthResponse,
   DocumentDetail,
   DocumentItem,
   DocumentSummary,
   ElectoralProgram,
+  Invitation,
+  InvitationPublic,
   PoliticalProfile,
   ProvidersDto,
   SittingDetail,
@@ -25,8 +28,15 @@ export const authApi = {
   providers: () => api.get<ProvidersDto>('/api/auth/providers').then((r) => r.data),
   login: (email: string, password: string) =>
     api.post<AuthResponse>('/api/auth/login', { email, password }).then((r) => r.data),
-  register: (dto: { email: string; password: string; fullName: string; comune?: string; partito?: string }) =>
-    api.post<AuthResponse>('/api/auth/register', dto).then((r) => r.data),
+  register: (dto: {
+    email: string;
+    password: string;
+    fullName: string;
+    comune?: string;
+    partito?: string;
+    gruppo?: string;
+    invitationToken?: string;
+  }) => api.post<AuthResponse>('/api/auth/register', dto).then((r) => r.data),
   me: () => api.get<User>('/api/auth/me').then((r) => r.data),
   refresh: (refreshToken: string) =>
     api.post<AuthResponse>('/api/auth/refresh', { refreshToken }).then((r) => r.data),
@@ -108,6 +118,27 @@ export const sittingsApi = {
     dto: { ordine: number; descrizione: string; decisione: Decisione; motivazione?: string; actId?: string; assignedUserIds?: string[] }
   ) => api.put<AgendaItem>(`/api/sittings/agenda/${itemId}`, dto).then((r) => r.data),
   removeAgenda: (itemId: string) => api.delete(`/api/sittings/agenda/${itemId}`).then((r) => r.data),
+  uploadAgendaDocument: (itemId: string, file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return api
+      .post<AgendaItem>(`/api/sittings/agenda/${itemId}/document`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then((r) => r.data);
+  },
+  updateAgendaStatus: (itemId: string, status: AgendaItemStatus) =>
+    api.put<AgendaItem>(`/api/sittings/agenda/${itemId}/status`, { status }).then((r) => r.data),
+};
+
+// --- INVITATIONS ---
+export const invitationsApi = {
+  list: () => api.get<Invitation[]>('/api/invitations').then((r) => r.data),
+  create: (req: { nome: string; cognome: string; email: string; gruppo?: string; comune?: string }) =>
+    api.post<{ token: string; url: string }>('/api/invitations', req).then((r) => r.data),
+  getPublic: (token: string) =>
+    api.get<InvitationPublic>(`/api/invitations/${token}`).then((r) => r.data),
+  remove: (id: string) => api.delete(`/api/invitations/${id}`).then((r) => r.data),
 };
 
 // --- USERS ---

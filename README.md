@@ -8,7 +8,7 @@ e l'organizzazione delle sedute con ordini del giorno e assegnazioni.
 ## Stack
 
 - **Backend**: ASP.NET Core 8 + EF Core + Identity + JWT, PostgreSQL via Npgsql
-- **AI**: Anthropic Claude (`claude-opus-4-5`) via HTTPS
+- **AI**: Anthropic Claude (`claude-sonnet-4-6` di default) via HTTPS, con prompt caching
 - **Frontend**: React 19 + Vite + TypeScript + TailwindCSS + React Router v6 + TanStack Query + Zustand
 - **Persistenza**: Postgres 16
 
@@ -78,7 +78,8 @@ Vedi `.env.example`. Le principali:
 | `JWT__Key` | Chiave segreta JWT (almeno 32 caratteri) |
 | `JWT__Issuer` / `JWT__Audience` | Issuer/Audience JWT |
 | `ANTHROPIC_API_KEY` | Chiave Claude (se mancante, gli endpoint AI rispondono 503) |
-| `ANTHROPIC_MODEL` | Modello Claude (default `claude-opus-4-5`) |
+| `ANTHROPIC_MODEL` | Modello Claude (default `claude-sonnet-4-6`) |
+| `BUDGET_MONTHLY_USD` | Cap di spesa AI mensile per utente in USD (default `5.0`) |
 | `GOOGLE_CLIENT_ID/SECRET` | OAuth Google (facoltativo) |
 | `MICROSOFT_CLIENT_ID/SECRET` | OAuth Microsoft (facoltativo) |
 | `Frontend__Url` | URL frontend per CORS |
@@ -137,6 +138,60 @@ Tutte le rotte (eccetto `/api/auth/*` e `/health`) richiedono header `Authorizat
 ### Utenti
 
 - `GET /api/users`
+
+### Usage / Budget AI
+
+- `GET /api/usage/me` - spesa AI dell'utente nel mese corrente, breakdown per operazione e per giorno, limite mensile
+- `GET /api/usage/admin` - (solo Admin) spesa AI di tutti gli utenti nel mese corrente
+
+## Costi e budget AI
+
+Le chiamate AI a `claude-*` consumano token a pagamento. Per controllare la spesa:
+
+### Pricing indicativo (USD per milione di token)
+
+Riferimento ufficiale: <https://www.anthropic.com/pricing>. Valori usati dal calcolatore interno:
+
+| Modello | Input | Output | Cache read | Cache write |
+|---|---|---|---|---|
+| `claude-sonnet-4-6` (default) | $3 | $15 | $0.30 | $3.75 |
+| `claude-opus-4-5` | $15 | $75 | $1.50 | $18.75 |
+| `claude-haiku-4-5` | $1 | $5 | $0.10 | $1.25 |
+
+Sonnet costa ~5x meno di Opus a parità di token; Haiku ~15x meno. Per la maggior parte dei task amministrativi Sonnet è più che sufficiente.
+
+### Prompt caching
+
+I controller AI separano il prompt di sistema in:
+
+- una parte **cacheable** (linea politica + programma elettorale del consigliere) marcata con `cache_control: ephemeral`
+- una parte **volatile** (testo dell'atto / documento corrente)
+
+Dopo la prima chiamata, i token cacheable costano il 10% (cache hit). Per un consigliere che genera 10 atti in fila, il risparmio è dell'ordine del 70-80% sui token di input.
+
+### Cambiare modello
+
+```bash
+# .env locale o env var Render/Docker
+ANTHROPIC_MODEL=claude-haiku-4-5   # più economico
+# oppure
+ANTHROPIC_MODEL=claude-opus-4-5    # più capace, più costoso
+```
+
+### Cap di spesa mensile per utente
+
+`BUDGET_MONTHLY_USD` (default `5.0`):
+
+- ogni chiamata AI viene loggata in `UsageLog` con token e costo stimato
+- prima di eseguire l'endpoint AI, `BudgetGuardAttribute` somma la spesa del mese corrente dell'utente
+- a >= 80% del budget aggiunge header `X-Budget-Warning: 80%` e logga warning
+- a >= 100% restituisce `HTTP 429` con body `{ "error":"budget_exceeded", "spentUsd":..., "limitUsd":... }`
+
+L'utente può consultare la propria spesa via `GET /api/usage/me` (vedi sopra).
+
+### Cap globale lato Anthropic
+
+Per un cap di sicurezza GLOBALE a livello di API key (indipendente dall'utente), configura uno **Spend limit** in Anthropic Console: <https://console.anthropic.com/settings/limits>.
 
 ## Flusso "Suggerimento riferimenti legislativi"
 

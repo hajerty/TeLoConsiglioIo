@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { documentsApi } from '../api/endpoints';
+import { getAIErrorMessage } from '../api/aiError';
 
 export default function Documenti() {
   const qc = useQueryClient();
   const docs = useQuery({ queryKey: ['docs'], queryFn: () => documentsApi.list() });
   const [openId, setOpenId] = useState<string | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
   const detail = useQuery({
     queryKey: ['docs', openId],
     queryFn: () => documentsApi.get(openId!),
@@ -19,9 +21,11 @@ export default function Documenti() {
   const summM = useMutation({
     mutationFn: (id: string) => documentsApi.summarize(id),
     onSuccess: (_, id) => {
+      setAiError(null);
       qc.invalidateQueries({ queryKey: ['docs', id] });
       qc.invalidateQueries({ queryKey: ['docs'] });
     },
+    onError: (e: unknown) => setAiError(getAIErrorMessage(e)),
   });
   const delM = useMutation({
     mutationFn: (id: string) => documentsApi.delete(id),
@@ -87,10 +91,15 @@ export default function Documenti() {
               <h2 className="text-lg font-semibold mb-1">{detail.data.originalName}</h2>
               <div className="text-xs text-slate-500 mb-3">{detail.data.type}</div>
               <div className="mb-3">
-                <button className="btn-primary text-sm" disabled={summM.isPending} onClick={() => summM.mutate(detail.data!.id)}>
+                <button className="btn-primary text-sm" disabled={summM.isPending} onClick={() => { setAiError(null); summM.mutate(detail.data!.id); }}>
                   {summM.isPending ? 'Generazione...' : detail.data.summary ? 'Rigenera riassunto AI' : 'Genera riassunto AI'}
                 </button>
               </div>
+              {aiError && (
+                <div className="mb-3 text-sm bg-amber-50 text-amber-800 border border-amber-200 px-3 py-2 rounded">
+                  {aiError}
+                </div>
+              )}
               {detail.data.summary && (
                 <div className="space-y-3">
                   <div>

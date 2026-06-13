@@ -184,6 +184,11 @@ Restituisci ESCLUSIVAMENTE un oggetto JSON con questa struttura:
 
             return Ok(new DocumentSummaryDto(summary, keyPoints, critic, doc.Summary.GeneratedAt));
         }
+        catch (AIQuotaExceededException ex)
+        {
+            _logger.LogWarning("Gemini quota exceeded: {Msg}", ex.Message);
+            return StatusCode(429, new { error = "ai_daily_quota_exceeded", message = "Limite giornaliero AI raggiunto, riprova domani." });
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Errore Gemini summarize");

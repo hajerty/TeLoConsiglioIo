@@ -122,9 +122,12 @@ public class GeminiAIService : IAIService
 
         if (!resp.IsSuccessStatusCode)
         {
+            var statusCode = (int)resp.StatusCode;
             _logger.LogError("Gemini error {Status}: {Body}", resp.StatusCode, text);
             resp.Dispose();
-            throw new HttpRequestException($"Gemini API error ({(int)resp.StatusCode}): {text}");
+            if (statusCode == 429)
+                throw new AIQuotaExceededException("Limite giornaliero AI raggiunto, riprova domani.");
+            throw new HttpRequestException($"Gemini API error ({statusCode}): {text}");
         }
         resp.Dispose();
 

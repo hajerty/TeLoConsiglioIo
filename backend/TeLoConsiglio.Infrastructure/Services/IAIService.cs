@@ -23,3 +23,8 @@ public interface IAIService
 
     decimal EstimateCostUsd(string model, int inputTokens, int outputTokens, int cachedReadTokens, int cacheCreationTokens);
 }
+
+public class AIQuotaExceededException : Exception
+{
+    public AIQuotaExceededException(string message) : base(message) { }
+}

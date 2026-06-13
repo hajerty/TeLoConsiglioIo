@@ -171,6 +171,11 @@ Produci ora il testo completo dell'atto in markdown.";
             await LogUsageAsync(uid, "acts.ai-draft", result);
             return Ok(new GenerateDraftResponse(result.Text));
         }
+        catch (AIQuotaExceededException ex)
+        {
+            _logger.LogWarning("Gemini quota exceeded: {Msg}", ex.Message);
+            return StatusCode(429, new { error = "ai_daily_quota_exceeded", message = "Limite giornaliero AI raggiunto, riprova domani." });
+        }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Errore Gemini draft");
@@ -238,6 +243,11 @@ Restituisci ESCLUSIVAMENTE JSON nella forma:
             await _db.SaveChangesAsync();
 
             return Ok(new SuggestLegalRefsResponse(refs));
+        }
+        catch (AIQuotaExceededException ex)
+        {
+            _logger.LogWarning("Gemini quota exceeded: {Msg}", ex.Message);
+            return StatusCode(429, new { error = "ai_daily_quota_exceeded", message = "Limite giornaliero AI raggiunto, riprova domani." });
         }
         catch (Exception ex)
         {

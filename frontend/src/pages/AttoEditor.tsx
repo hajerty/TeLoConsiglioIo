@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { actsApi } from '../api/endpoints';
+import { getAIErrorMessage } from '../api/aiError';
 import type { ActStatus } from '../api/types';
 import { Modal } from '../components/Modal';
 
@@ -56,8 +57,7 @@ export default function AttoEditor() {
       setFeedback('Bozza generata. Ricordati di salvare.');
     },
     onError: (e: unknown) => {
-      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setFeedback(msg || 'Errore generazione bozza');
+      setFeedback(getAIErrorMessage(e));
     },
   });
 
@@ -68,8 +68,7 @@ export default function AttoEditor() {
       setRefsModalOpen(true);
     },
     onError: (e: unknown) => {
-      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error;
-      setFeedback(msg || 'Errore suggerimento riferimenti');
+      setFeedback(getAIErrorMessage(e));
     },
   });
 

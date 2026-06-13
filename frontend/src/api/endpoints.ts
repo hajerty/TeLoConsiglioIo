@@ -1,5 +1,6 @@
 import { api } from './client';
 import type {
+  ActAttachment,
   ActDetail,
   ActListItem,
   ActType,
@@ -12,6 +13,8 @@ import type {
   ElectoralProgram,
   Invitation,
   InvitationPublic,
+  PartyManifest,
+  PartySummary,
   PoliticalProfile,
   ProvidersDto,
   SittingDetail,
@@ -47,8 +50,13 @@ export const authApi = {
 // --- PROFILE ---
 export const profileApi = {
   getPolitical: () => api.get<PoliticalProfile>('/api/profile/political').then((r) => r.data),
-  putPolitical: (dto: PoliticalProfile) =>
+  updatePolitical: (dto: Partial<PoliticalProfile>) =>
     api.put<PoliticalProfile>('/api/profile/political', dto).then((r) => r.data),
+  /** @deprecated use updatePolitical */
+  putPolitical: (dto: Partial<PoliticalProfile>) =>
+    api.put<PoliticalProfile>('/api/profile/political', dto).then((r) => r.data),
+  resetLineaPolitica: () =>
+    api.post<PoliticalProfile>('/api/profile/political/reset-linea').then((r) => r.data),
   listPrograms: () => api.get<ElectoralProgram[]>('/api/profile/programs').then((r) => r.data),
   uploadProgram: (file: File) => {
     const fd = new FormData();
@@ -58,6 +66,12 @@ export const profileApi = {
       .then((r) => r.data);
   },
   deleteProgram: (id: string) => api.delete(`/api/profile/programs/${id}`).then((r) => r.data),
+};
+
+// --- PARTY MANIFESTS ---
+export const partyManifestsApi = {
+  list: () => api.get<PartySummary[]>('/api/party-manifests').then((r) => r.data),
+  get: (key: string) => api.get<PartyManifest>(`/api/party-manifests/${key}`).then((r) => r.data),
 };
 
 // --- DOCUMENTS ---
@@ -83,10 +97,25 @@ export const actsApi = {
   list: (params?: { tipo?: ActType; status?: ActStatus; q?: string }) =>
     api.get<ActListItem[]>('/api/acts', { params }).then((r) => r.data),
   get: (id: string) => api.get<ActDetail>(`/api/acts/${id}`).then((r) => r.data),
-  create: (dto: { tipo: ActType; titolo: string; oggetto: string; contextNotes?: string; bodyMd?: string; parentActId?: string }) =>
-    api.post<ActDetail>('/api/acts', dto).then((r) => r.data),
-  update: (id: string, dto: { titolo: string; oggetto: string; contextNotes?: string; bodyMd: string; status: ActStatus }) =>
-    api.put<ActDetail>(`/api/acts/${id}`, dto).then((r) => r.data),
+  create: (dto: {
+    tipo: ActType;
+    titolo: string;
+    oggetto: string;
+    contextNotes?: string;
+    bodyMd?: string;
+    parentActId?: string;
+    referenceUrls?: string[];
+    referenceNotesMd?: string;
+  }) => api.post<ActDetail>('/api/acts', dto).then((r) => r.data),
+  update: (id: string, dto: {
+    titolo: string;
+    oggetto: string;
+    contextNotes?: string;
+    bodyMd: string;
+    status: ActStatus;
+    referenceUrls?: string[];
+    referenceNotesMd?: string | null;
+  }) => api.put<ActDetail>(`/api/acts/${id}`, dto).then((r) => r.data),
   remove: (id: string) => api.delete(`/api/acts/${id}`).then((r) => r.data),
   aiDraft: (id: string, additionalInstructions?: string) =>
     api
@@ -100,6 +129,29 @@ export const actsApi = {
     api
       .post<ActDetail>(`/api/acts/${id}/legal-refs/insert`, { referenceIds, mode })
       .then((r) => r.data),
+  // Allegati
+  listAttachments: (actId: string) =>
+    api.get<ActAttachment[]>(`/api/acts/${actId}/attachments`).then((r) => r.data),
+  uploadAttachment: (actId: string, file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return api
+      .post<ActAttachment>(`/api/acts/${actId}/attachments`, fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then((r) => r.data);
+  },
+  downloadAttachment: (actId: string, attId: string) =>
+    api
+      .get(`/api/acts/${actId}/attachments/${attId}`, { responseType: 'blob' })
+      .then((r) => r.data as Blob),
+  deleteAttachment: (actId: string, attId: string) =>
+    api.delete(`/api/acts/${actId}/attachments/${attId}`).then((r) => r.data),
+  // Export PDF
+  exportPdf: (actId: string) =>
+    api
+      .get(`/api/acts/${actId}/pdf`, { responseType: 'blob' })
+      .then((r) => r.data as Blob),
 };
 
 // --- SITTINGS ---

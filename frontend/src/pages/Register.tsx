@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { authApi, invitationsApi } from '../api/endpoints';
+import { useQuery } from '@tanstack/react-query';
+import { authApi, invitationsApi, partyManifestsApi } from '../api/endpoints';
 import { useAuthStore } from '../auth/store';
-
-const PARTITI = ['PD', 'FdI', 'Lega', 'M5S', 'FI', 'AVS', 'Azione', 'IV', 'Civica', 'Altro'];
 
 export default function Register() {
   const [searchParams] = useSearchParams();
   const inviteToken = searchParams.get('invite');
+
+  const partitiQ = useQuery({ queryKey: ['party-manifests'], queryFn: partyManifestsApi.list });
 
   const [form, setForm] = useState({
     email: '',
@@ -166,9 +167,10 @@ export default function Register() {
               onChange={(e) => setForm({ ...form, partito: e.target.value })}
             >
               <option value="">-- Seleziona --</option>
-              {PARTITI.map((p) => (
-                <option key={p} value={p}>{p}</option>
+              {(partitiQ.data ?? []).map((p) => (
+                <option key={p.key} value={p.key}>{p.fullName}</option>
               ))}
+              <option value="Civica">Civica</option>
             </select>
           </div>
 

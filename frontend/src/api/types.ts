@@ -64,6 +64,8 @@ export interface ActDetail {
   updatedAt: string;
   revisions: ActRevision[];
   legalReferences: LegalRef[];
+  referenceUrls: string[];
+  referenceNotesMd?: string | null;
 }
 
 export interface SuggestedRef {
@@ -158,9 +160,32 @@ export interface SittingDetail {
   items: AgendaItem[];
 }
 
+export type LineaPoliticaSource = 'Partito' | 'Manuale';
+
 export interface PoliticalProfile {
   lineaPoliticaMd: string;
-  puntiEvidenza: string[];
+  argomentiForti: string[];
+  temiInteresse: string[];
+  lineaPoliticaSource: LineaPoliticaSource;
+}
+
+export interface PartySummary {
+  key: string;
+  fullName: string;
+}
+
+export interface PartyManifest {
+  key: string;
+  fullName: string;
+  lineaPoliticaMd: string;
+}
+
+export interface ActAttachment {
+  id: string;
+  originalName: string;
+  contentType: string;
+  sizeBytes: number;
+  createdAt: string;
 }
 
 export interface ElectoralProgram {

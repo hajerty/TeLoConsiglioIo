@@ -18,8 +18,8 @@ services:
         value: TeLoConsiglio
       - key: JWT__Key
         generateValue: true
-      - key: ANTHROPIC_MODEL
-        value: claude-sonnet-4-6
+      - key: GEMINI_MODEL
+        value: gemini-2.5-flash
       - key: BUDGET_MONTHLY_USD
         value: "5.0"
       - key: ENABLE_SWAGGER
@@ -27,6 +27,6 @@ services:
       # Da impostare manualmente nella dashboard Render:
       # - ConnectionStrings__Default  (stringa Neon, formato Host=...;Port=5432;Database=...;Username=...;Password=...;SslMode=Require;Trust Server Certificate=true)
       # - Frontend__Url                (URL pubblico Netlify, es https://teloconsiglio.netlify.app)
-      # - ANTHROPIC_API_KEY            (opzionale, abilita le funzioni AI)
+      # - GEMINI_API_KEY               (opzionale, abilita le funzioni AI - free tier: https://aistudio.google.com/apikey)
       # - GOOGLE_CLIENT_ID/SECRET      (opzionale)
       # - MICROSOFT_CLIENT_ID/SECRET   (opzionale)

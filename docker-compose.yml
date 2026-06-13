@@ -30,8 +30,8 @@ services:
       JWT_KEY: "${JWT__Key:?JWT__Key richiesto (almeno 32 byte casuali) - openssl rand -hex 32}"
       JWT_ISSUER: ${JWT__Issuer:-TeLoConsiglio}
       JWT_AUDIENCE: ${JWT__Audience:-TeLoConsiglio}
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-claude-sonnet-4-6}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
       BUDGET_MONTHLY_USD: ${BUDGET_MONTHLY_USD:-5.0}
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}

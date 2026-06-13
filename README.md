@@ -8,7 +8,7 @@ e l'organizzazione delle sedute con ordini del giorno e assegnazioni.
 ## Stack
 
 - **Backend**: ASP.NET Core 8 + EF Core + Identity + JWT, PostgreSQL via Npgsql
-- **AI**: Anthropic Claude (`claude-sonnet-4-6` di default) via HTTPS, con prompt caching
+- **AI**: Google Gemini (`gemini-2.5-flash` di default) via HTTPS — free tier copre tutto
 - **Frontend**: React 19 + Vite + TypeScript + TailwindCSS + React Router v6 + TanStack Query + Zustand
 - **Persistenza**: Postgres 16
 
@@ -21,7 +21,8 @@ e l'organizzazione delle sedute con ordini del giorno e assegnazioni.
 
 ```bash
 cp .env.example .env
-# (opzionale) modifica .env e imposta ANTHROPIC_API_KEY se vuoi usare le feature AI
+# (opzionale) modifica .env e imposta GEMINI_API_KEY se vuoi usare le feature AI
+# API key gratis (no carta richiesta): https://aistudio.google.com/apikey
 docker compose up --build
 ```
 
@@ -51,7 +52,7 @@ Avvia un'istanza locale, crea un DB `teloconsiglio` con utente/password a piacer
 ```bash
 cd backend
 export ConnectionStrings__Default="Host=localhost;Port=5432;Database=teloconsiglio;Username=postgres;Password=postgres"
-export ANTHROPIC_API_KEY="sk-ant-..."   # opzionale
+export GEMINI_API_KEY="AIza..."   # opzionale, gratis su https://aistudio.google.com/apikey
 dotnet run --project TeLoConsiglio.Api
 # API in ascolto su http://localhost:5000 (o porta da launchSettings)
 ```
@@ -77,8 +78,8 @@ Vedi `.env.example`. Le principali:
 | `POSTGRES_DB/USER/PASSWORD` | Configurazione Postgres |
 | `JWT__Key` | Chiave segreta JWT (almeno 32 caratteri) |
 | `JWT__Issuer` / `JWT__Audience` | Issuer/Audience JWT |
-| `ANTHROPIC_API_KEY` | Chiave Claude (se mancante, gli endpoint AI rispondono 503) |
-| `ANTHROPIC_MODEL` | Modello Claude (default `claude-sonnet-4-6`) |
+| `GEMINI_API_KEY` | Chiave Google Gemini (se mancante, gli endpoint AI rispondono 503). Free tier: <https://aistudio.google.com/apikey> |
+| `GEMINI_MODEL` | Modello Gemini (default `gemini-2.5-flash`, gratis nel free tier) |
 | `BUDGET_MONTHLY_USD` | Cap di spesa AI mensile per utente in USD (default `5.0`) |
 | `GOOGLE_CLIENT_ID/SECRET` | OAuth Google (facoltativo) |
 | `MICROSOFT_CLIENT_ID/SECRET` | OAuth Microsoft (facoltativo) |
@@ -146,36 +147,36 @@ Tutte le rotte (eccetto `/api/auth/*` e `/health`) richiedono header `Authorizat
 
 ## Costi e budget AI
 
-Le chiamate AI a `claude-*` consumano token a pagamento. Per controllare la spesa:
+Il provider AI è **Google Gemini**. Sul free tier le chiamate sono **gratis** (zero USD):
+quote indicative 1500 richieste/giorno, contesto fino a 1M token, per modello `flash`.
 
-### Pricing indicativo (USD per milione di token)
+### Ottieni una API key gratis
 
-Riferimento ufficiale: <https://www.anthropic.com/pricing>. Valori usati dal calcolatore interno:
+1. Vai su <https://aistudio.google.com/apikey>
+2. Login con account Google (non serve carta di credito)
+3. **Create API key** → copia il valore (inizia con `AIza...`)
+4. Incollalo in `.env` come `GEMINI_API_KEY=...`
 
-| Modello | Input | Output | Cache read | Cache write |
-|---|---|---|---|---|
-| `claude-sonnet-4-6` (default) | $3 | $15 | $0.30 | $3.75 |
-| `claude-opus-4-5` | $15 | $75 | $1.50 | $18.75 |
-| `claude-haiku-4-5` | $1 | $5 | $0.10 | $1.25 |
+### Pricing (USD per milione di token)
 
-Sonnet costa ~5x meno di Opus a parità di token; Haiku ~15x meno. Per la maggior parte dei task amministrativi Sonnet è più che sufficiente.
+Riferimento ufficiale: <https://ai.google.dev/pricing>. Valori usati dal calcolatore interno:
 
-### Prompt caching
+| Modello | Input | Output | Note |
+|---|---|---|---|
+| `gemini-2.5-flash` (default) | $0 | $0 | free tier, qualità ottima per atti amministrativi |
+| `gemini-2.5-flash-lite` | $0 | $0 | free tier, più veloce / meno capace |
+| `gemini-2.5-pro` | $1.25 | $10 | tier a pagamento, top quality |
 
-I controller AI separano il prompt di sistema in:
-
-- una parte **cacheable** (linea politica + programma elettorale del consigliere) marcata con `cache_control: ephemeral`
-- una parte **volatile** (testo dell'atto / documento corrente)
-
-Dopo la prima chiamata, i token cacheable costano il 10% (cache hit). Per un consigliere che genera 10 atti in fila, il risparmio è dell'ordine del 70-80% sui token di input.
+Con `flash` (default) il costo per utente è **0 USD**: il budget guard è una rete di sicurezza
+attiva ma non scatta mai. Se passi a `gemini-2.5-pro` (a pagamento), `BUDGET_MONTHLY_USD` torna a fare cap.
 
 ### Cambiare modello
 
 ```bash
 # .env locale o env var Render/Docker
-ANTHROPIC_MODEL=claude-haiku-4-5   # più economico
+GEMINI_MODEL=gemini-2.5-flash-lite   # ancora più veloce, gratis
 # oppure
-ANTHROPIC_MODEL=claude-opus-4-5    # più capace, più costoso
+GEMINI_MODEL=gemini-2.5-pro          # più capace, a pagamento
 ```
 
 ### Cap di spesa mensile per utente
@@ -187,16 +188,18 @@ ANTHROPIC_MODEL=claude-opus-4-5    # più capace, più costoso
 - a >= 80% del budget aggiunge header `X-Budget-Warning: 80%` e logga warning
 - a >= 100% restituisce `HTTP 429` con body `{ "error":"budget_exceeded", "spentUsd":..., "limitUsd":... }`
 
-L'utente può consultare la propria spesa via `GET /api/usage/me` (vedi sopra).
+Sui modelli free il costo è 0, quindi il cap non si attiva mai — è una rete di sicurezza per quando si migra su tier a pagamento.
 
-### Cap globale lato Anthropic
+L'utente può comunque consultare token consumati e operazioni via `GET /api/usage/me`.
 
-Per un cap di sicurezza GLOBALE a livello di API key (indipendente dall'utente), configura uno **Spend limit** in Anthropic Console: <https://console.anthropic.com/settings/limits>.
+### Cap globale lato Google
+
+Per un cap di sicurezza GLOBALE a livello di progetto Google Cloud (indipendente dall'utente), configura **Quotas** in Google Cloud Console: <https://console.cloud.google.com/> → APIs & Services → Quotas → cerca *Generative Language API*.
 
 ## Flusso "Suggerimento riferimenti legislativi"
 
 1. Apri un atto (`/atti/{id}`) e clicca **Suggerisci riferimenti**.
-2. Il backend invia il testo a Claude, riceve una lista di citazioni pertinenti (TUEL, Costituzione, regolamenti) e la persiste.
+2. Il backend invia il testo a Gemini, riceve una lista di citazioni pertinenti (TUEL, Costituzione, regolamenti) e la persiste.
 3. Si apre una **modal** con checkbox accanto a ciascun riferimento (citazione + motivazione).
 4. Scegli se inserire **in coda al testo** oppure **al posto del placeholder `[[REF]]`**.
 5. Premi **Inserisci selezionati** -> il backend aggiorna `BodyMd` dell'atto e marca i riferimenti come confermati.
@@ -212,7 +215,7 @@ _Placeholder: aggiungere screenshot dei flussi (Dashboard, Profilo, Editor atto 
 ├── backend/
 │   ├── TeLoConsiglio.Api/          # ASP.NET Core (controller, Program.cs, seed)
 │   ├── TeLoConsiglio.Domain/       # Entita'
-│   ├── TeLoConsiglio.Infrastructure/  # DbContext, migrations, services (Anthropic, extractor)
+│   ├── TeLoConsiglio.Infrastructure/  # DbContext, migrations, services (Gemini AI, extractor)
 │   └── Dockerfile
 ├── frontend/
 │   ├── src/api/                    # axios client + endpoint wrappers
@@ -249,7 +252,7 @@ Stack 100% free tier:
 3. Nel pannello del servizio appena creato, **Environment** → aggiungi a mano:
    - `ConnectionStrings__Default` = la stringa Npgsql del passo 1
    - `Frontend__Url` = URL Netlify (es. `https://teloconsiglio.netlify.app`) — lo metterai dopo il punto 3
-   - `ANTHROPIC_API_KEY` = la tua API key Anthropic (opzionale ma necessaria per le funzioni AI)
+   - `GEMINI_API_KEY` = la tua API key Google Gemini (opzionale ma necessaria per le funzioni AI). Gratis su <https://aistudio.google.com/apikey>
 4. Render builda l'immagine Docker e applica le migrations all'avvio. URL finale tipo `https://teloconsiglio-api.onrender.com`
 
 ### 3. Deploy frontend su Netlify
@@ -271,5 +274,5 @@ Stack 100% free tier:
 ## Note di sicurezza
 
 - Cambia `JWT__Key` e la password dell'admin in produzione.
-- Le feature AI sono disabilitate (HTTP 503) se manca `ANTHROPIC_API_KEY`: il resto dell'app funziona normalmente.
+- Le feature AI sono disabilitate (HTTP 503) se manca `GEMINI_API_KEY`: il resto dell'app funziona normalmente.
 - Gli upload risiedono in `backend/uploads/` (volume Docker `uploads` in compose).

@@ -132,17 +132,24 @@ Tutte le rotte (eccetto `/api/auth/*` e `/health`) richiedono header `Authorizat
 - `POST /api/acts/{id}/legal-refs/confirm` - alias di insert
 - `POST /api/acts/{id}/legal-refs/insert` - inserisce i riferimenti selezionati nel testo
 
+### Dashboard
+
+- `GET /api/dashboard` - dashboard utente: documenti recenti (top 5), prossima seduta del Comune, voci ODG da analizzare, contatori (atti in bozza, sedute future, inviti pending)
+
 ### Sedute
 
-- `GET  /api/sittings`
+- `GET  /api/sittings` — lista sedute; query params: `from`, `to` (DateTime), `q` (full-text su Titolo+Luogo), `period` (`All|Past|Upcoming`), `page`, `pageSize`; header `X-Total-Count`
 - `GET  /api/sittings/{id}`
 - `POST /api/sittings`
 - `DELETE /api/sittings/{id}`
+- `GET  /api/sittings/{id}/report.pdf` - scarica report PDF della seduta (solo voci con stato `ApprovataPerSeduta`; header `Content-Disposition: attachment`)
 - `POST /api/sittings/{id}/agenda`
 - `PUT  /api/sittings/agenda/{itemId}`
 - `DELETE /api/sittings/agenda/{itemId}`
 - `POST /api/sittings/agenda/{itemId}/document` - carica documento per un punto ODG (multipart, stessa whitelist upload)
 - `PUT  /api/sittings/agenda/{itemId}/status` - aggiorna stato punto ODG (`DaAnalizzare|Analizzata|ApprovataPerSeduta`)
+- `GET  /api/sittings/{id}/agenda/{itemId}/document-suggestions` - top 5 documenti usati in altri punti ODG dell'utente con descrizione simile (score 100=exact, 50=substring)
+- `POST /api/sittings/agenda/{itemId}/clone-document` - copia DocumentId da un altro AgendaItem (body: `{sourceAgendaItemId}`; link al file, nessuna copia fisica)
 
 ### Inviti
 

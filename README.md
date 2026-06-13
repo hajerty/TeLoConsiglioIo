@@ -170,6 +170,49 @@ _Placeholder: aggiungere screenshot dei flussi (Dashboard, Profilo, Editor atto 
 └── README.md
 ```
 
+## Deploy gratuito (Netlify + Render + Neon)
+
+Stack 100% free tier:
+
+- **Frontend** → [Netlify](https://app.netlify.com) (statico)
+- **Backend** → [Render](https://dashboard.render.com) (web service Docker, free, va in sleep dopo 15 min di inattività)
+- **Database** → [Neon](https://console.neon.tech) (Postgres serverless, 0.5 GB free)
+
+### 1. Crea il database su Neon
+
+1. Registrati su Neon, crea un nuovo progetto (regione EU per minimizzare latenza con Render `frankfurt`)
+2. Copia la **connection string** (formato `postgresql://user:pass@ep-xxx.eu-central-1.aws.neon.tech/neondb?sslmode=require`)
+3. Convertila in formato Npgsql:
+   ```
+   Host=ep-xxx.eu-central-1.aws.neon.tech;Database=neondb;Username=user;Password=pass;SslMode=Require;Trust Server Certificate=true
+   ```
+
+### 2. Deploy backend su Render
+
+1. Su Render dashboard → **New +** → **Blueprint**
+2. Connetti il repo GitHub, Render legge `render.yaml` e crea il servizio
+3. Nel pannello del servizio appena creato, **Environment** → aggiungi a mano:
+   - `ConnectionStrings__Default` = la stringa Npgsql del passo 1
+   - `Frontend__Url` = URL Netlify (es. `https://teloconsiglio.netlify.app`) — lo metterai dopo il punto 3
+   - `ANTHROPIC_API_KEY` = la tua API key Anthropic (opzionale ma necessaria per le funzioni AI)
+4. Render builda l'immagine Docker e applica le migrations all'avvio. URL finale tipo `https://teloconsiglio-api.onrender.com`
+
+### 3. Deploy frontend su Netlify
+
+1. Su Netlify → **Add new site** → **Import from Git** → seleziona il repo
+2. Netlify legge `netlify.toml` (build dir `frontend`, output `frontend/dist`)
+3. Prima del primo deploy, **Site configuration** → **Environment variables**:
+   - `VITE_API_URL` = URL del backend Render (es. `https://teloconsiglio-api.onrender.com`)
+4. Trigger deploy
+5. Torna su Render, aggiorna `Frontend__Url` con l'URL Netlify finale (es. `https://teloconsiglio.netlify.app`) e riavvia il servizio per applicare CORS
+
+### Caveat free tier
+
+- Render free: il backend va in sleep dopo 15 min; la prima request dopo lo sleep ha cold start di ~30 secondi
+- Neon free: 0.5 GB storage, branching limitato, compute autosuspend dopo 5 min (riprende automaticamente)
+- Netlify free: 100 GB/mese di banda, build 300 min/mese
+- OAuth Google/Microsoft: vanno configurati con i domini pubblici nei rispettivi cloud console
+
 ## Note di sicurezza
 
 - Cambia `JWT__Key` e la password dell'admin in produzione.

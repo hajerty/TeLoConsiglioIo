@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: teloconsiglio-api
+    runtime: docker
+    plan: free
+    region: frankfurt
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/auth/providers
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ASPNETCORE_URLS
+        value: http://+:8080
+      - key: JWT__Issuer
+        value: TeLoConsiglio
+      - key: JWT__Audience
+        value: TeLoConsiglio
+      - key: JWT__Key
+        generateValue: true
+      - key: ANTHROPIC_MODEL
+        value: claude-opus-4-5
+      - key: ENABLE_SWAGGER
+        value: "true"
+      # Da impostare manualmente nella dashboard Render:
+      # - ConnectionStrings__Default  (stringa Neon, formato Host=...;Port=5432;Database=...;Username=...;Password=...;SslMode=Require;Trust Server Certificate=true)
+      # - Frontend__Url                (URL pubblico Netlify, es https://teloconsiglio.netlify.app)
+      # - ANTHROPIC_API_KEY            (opzionale, abilita le funzioni AI)
+      # - GOOGLE_CLIENT_ID/SECRET      (opzionale)
+      # - MICROSOFT_CLIENT_ID/SECRET   (opzionale)

@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Download, RefreshCw, Star } from 'lucide-react';
 import { sittingsApi, usersApi } from '../api/endpoints';
-import type { AgendaItemStatus, Decisione } from '../api/types';
+import type { AgendaItemStatus, Decisione, DocumentSuggestion } from '../api/types';
 import { Modal } from '../components/Modal';
 
 const DECISIONI: Decisione[] = ['DaDecidere', 'Approvare', 'Respingere', 'Astenersi'];
@@ -28,11 +29,37 @@ const AGENDA_STATUS_COLORS: Record<AgendaItemStatus, string> = {
   ApprovataPerSeduta: 'bg-green-100 text-green-800',
 };
 
+function formatDateIT(dateStr: string) {
+  return new Intl.DateTimeFormat('it-IT', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  }).format(new Date(dateStr));
+}
+
+function ScoreBadge({ score }: { score: number }) {
+  const pct = Math.round(score * 100);
+  const color =
+    pct >= 80 ? 'bg-green-100 text-green-700' :
+    pct >= 50 ? 'bg-yellow-100 text-yellow-700' :
+    'bg-slate-100 text-slate-600';
+  return (
+    <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${color}`}>
+      {pct}% compatibile
+    </span>
+  );
+}
+
 export default function SedutaDettaglio() {
   const { id } = useParams<{ id: string }>();
   const qc = useQueryClient();
   const fileInputRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [statusDropdown, setStatusDropdown] = useState<string | null>(null);
+
+  // Modal "Riproponi documento"
+  const [suggestItemId, setSuggestItemId] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<DocumentSuggestion[]>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
 
   const detail = useQuery({
     queryKey: ['sitting', id],
@@ -90,22 +117,90 @@ export default function SedutaDettaglio() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ['sitting', id] }),
   });
 
+  const cloneDocM = useMutation({
+    mutationFn: ({ itemId, sourceAgendaItemId }: { itemId: string; sourceAgendaItemId: string }) =>
+      sittingsApi.cloneDocument(itemId, sourceAgendaItemId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['sitting', id] });
+      qc.invalidateQueries({ queryKey: ['dashboard'] });
+      setSuggestItemId(null);
+      setSuggestions([]);
+    },
+  });
+
+  // Esporta PDF report
+  const [exportingPdf, setExportingPdf] = useState(false);
+
+  async function handleExportPdf() {
+    if (!id) return;
+    setExportingPdf(true);
+    try {
+      const blob = await sittingsApi.exportReportPdf(id);
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `report-seduta-${id}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExportingPdf(false);
+    }
+  }
+
+  async function handleOpenSuggestions(itemId: string) {
+    setSuggestItemId(itemId);
+    setSuggestions([]);
+    setLoadingSuggestions(true);
+    try {
+      const data = await sittingsApi.getDocumentSuggestions(id!, itemId);
+      setSuggestions(data);
+    } catch {
+      setSuggestions([]);
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  }
+
   if (detail.isLoading) return <div className="text-slate-500">Caricamento...</div>;
   if (!detail.data) return <div className="text-slate-500">Seduta non trovata.</div>;
 
+  const hasApprovate = detail.data.items.some((it) => it.status === 'ApprovataPerSeduta');
+
   return (
     <div>
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
         <div>
           <h1 className="text-2xl font-semibold text-slate-900">{detail.data.titolo}</h1>
           <div className="text-sm text-slate-500">
             {new Date(detail.data.data).toLocaleString('it-IT')} - {detail.data.luogo}
           </div>
         </div>
-        <button className="btn-primary" onClick={() => {
-          setForm((f) => ({ ...f, ordine: detail.data!.items.length + 1 }));
-          setOpen(true);
-        }}>+ Punto ODG</button>
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Esporta report PDF */}
+          <div className="relative group">
+            <button
+              className="btn-secondary flex items-center gap-1.5 text-sm py-1.5 disabled:opacity-50"
+              onClick={handleExportPdf}
+              disabled={!hasApprovate || exportingPdf}
+              title={hasApprovate ? 'Esporta report PDF' : 'Nessuna voce approvata'}
+            >
+              <Download className="w-4 h-4" />
+              {exportingPdf ? 'Generazione...' : 'Esporta report PDF'}
+            </button>
+            {!hasApprovate && (
+              <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block bg-slate-800 text-white text-xs rounded px-2 py-1 whitespace-nowrap z-10">
+                Nessuna voce approvata
+              </div>
+            )}
+          </div>
+
+          <button className="btn-primary" onClick={() => {
+            setForm((f) => ({ ...f, ordine: detail.data!.items.length + 1 }));
+            setOpen(true);
+          }}>+ Punto ODG</button>
+        </div>
       </div>
 
       <div className="card">
@@ -212,13 +307,23 @@ export default function SedutaDettaglio() {
                         </button>
                       </>
                     ) : (
-                      <button
-                        className="text-xs btn-secondary py-0.5"
-                        onClick={() => fileInputRefs.current[it.id]?.click()}
-                        disabled={uploadDocM.isPending}
-                      >
-                        Carica documento
-                      </button>
+                      <>
+                        <button
+                          className="text-xs btn-secondary py-0.5"
+                          onClick={() => fileInputRefs.current[it.id]?.click()}
+                          disabled={uploadDocM.isPending}
+                        >
+                          Carica documento
+                        </button>
+                        <button
+                          className="text-xs btn-secondary py-0.5 flex items-center gap-1"
+                          onClick={() => handleOpenSuggestions(it.id)}
+                          disabled={uploadDocM.isPending}
+                        >
+                          <RefreshCw className="w-3 h-3" />
+                          Riproponi da seduta precedente
+                        </button>
+                      </>
                     )}
                     <input
                       type="file"
@@ -247,6 +352,7 @@ export default function SedutaDettaglio() {
         )}
       </div>
 
+      {/* Modal Nuovo punto ODG */}
       <Modal
         open={open}
         onClose={() => setOpen(false)}
@@ -294,6 +400,59 @@ export default function SedutaDettaglio() {
             </select>
           </div>
         </div>
+      </Modal>
+
+      {/* Modal Riproponi documento */}
+      <Modal
+        open={suggestItemId !== null}
+        onClose={() => { setSuggestItemId(null); setSuggestions([]); }}
+        title="Riproponi documento da seduta precedente"
+        size="lg"
+      >
+        {loadingSuggestions ? (
+          <div className="text-slate-500 py-4 text-center">Ricerca suggerimenti...</div>
+        ) : suggestions.length === 0 ? (
+          <div className="text-slate-500 py-4 text-center">
+            Nessun documento simile trovato nelle sedute precedenti.
+          </div>
+        ) : (
+          <ul className="space-y-3">
+            {suggestions.map((s) => (
+              <li
+                key={`${s.sittingId}-${s.agendaItemId}`}
+                className="border border-slate-200 rounded-lg p-3 bg-slate-50"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs text-slate-400 mb-0.5">
+                      {formatDateIT(s.sittingData)} — {s.sittingTitolo}
+                    </div>
+                    <div className="text-sm font-medium text-slate-800 mb-0.5 line-clamp-2">
+                      {s.descrizione}
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Star className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                      <span className="text-xs text-slate-600 truncate">{s.documentName}</span>
+                      <ScoreBadge score={s.score} />
+                    </div>
+                  </div>
+                  <button
+                    className="btn-primary text-xs py-1 px-3 flex-shrink-0"
+                    disabled={cloneDocM.isPending}
+                    onClick={() =>
+                      cloneDocM.mutate({
+                        itemId: suggestItemId!,
+                        sourceAgendaItemId: s.agendaItemId,
+                      })
+                    }
+                  >
+                    {cloneDocM.isPending ? 'Riuso...' : 'Riusa questo documento'}
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </Modal>
     </div>
   );

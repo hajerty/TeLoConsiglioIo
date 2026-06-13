@@ -7,9 +7,11 @@ import type {
   ActStatus,
   AgendaItemStatus,
   AuthResponse,
+  DashboardPayload,
   DocumentDetail,
   DocumentItem,
   DocumentSummary,
+  DocumentSuggestion,
   ElectoralProgram,
   Invitation,
   InvitationPublic,
@@ -19,12 +21,18 @@ import type {
   ProvidersDto,
   SittingDetail,
   SittingListItem,
+  SittingsQueryParams,
   SuggestedRef,
   User,
   UserPick,
   AgendaItem,
   Decisione,
 } from './types';
+
+// --- DASHBOARD ---
+export const dashboardApi = {
+  get: () => api.get<DashboardPayload>('/api/dashboard').then((r) => r.data),
+};
 
 // --- AUTH ---
 export const authApi = {
@@ -156,7 +164,11 @@ export const actsApi = {
 
 // --- SITTINGS ---
 export const sittingsApi = {
-  list: () => api.get<SittingListItem[]>('/api/sittings').then((r) => r.data),
+  list: (params?: SittingsQueryParams) =>
+    api.get<SittingListItem[]>('/api/sittings', { params }).then((r) => ({
+      data: r.data,
+      totalCount: parseInt(r.headers['x-total-count'] ?? '0', 10),
+    })),
   get: (id: string) => api.get<SittingDetail>(`/api/sittings/${id}`).then((r) => r.data),
   create: (dto: { data: string; luogo: string; titolo: string }) =>
     api.post<SittingDetail>('/api/sittings', dto).then((r) => r.data),
@@ -181,6 +193,16 @@ export const sittingsApi = {
   },
   updateAgendaStatus: (itemId: string, status: AgendaItemStatus) =>
     api.put<AgendaItem>(`/api/sittings/agenda/${itemId}/status`, { status }).then((r) => r.data),
+  exportReportPdf: (id: string) =>
+    api.get(`/api/sittings/${id}/report.pdf`, { responseType: 'blob' }).then((r) => r.data as Blob),
+  getDocumentSuggestions: (sittingId: string, itemId: string) =>
+    api
+      .get<DocumentSuggestion[]>(`/api/sittings/${sittingId}/agenda/${itemId}/document-suggestions`)
+      .then((r) => r.data),
+  cloneDocument: (itemId: string, sourceAgendaItemId: string) =>
+    api
+      .post<AgendaItem>(`/api/sittings/agenda/${itemId}/clone-document`, { sourceAgendaItemId })
+      .then((r) => r.data),
 };
 
 // --- INVITATIONS ---

@@ -198,3 +198,65 @@ export interface UserPick {
   id: string;
   displayName: string;
 }
+
+// --- DASHBOARD ---
+export interface DocumentListItem {
+  id: string;
+  originalName: string;
+  type: DocumentType;
+  createdAt: string;
+  hasSummary: boolean;
+}
+
+export interface NextSitting {
+  id: string;
+  data: string;
+  luogo: string;
+  titolo: string;
+  agendaCount: number;
+  daAnalizzareCount: number;
+}
+
+export interface DocToAnalyze {
+  sittingId: string;
+  sittingTitolo: string;
+  agendaItemId: string;
+  agendaItemDescrizione: string;
+  documentId: string;
+  documentName: string;
+}
+
+export interface DashboardCounters {
+  attiBozza: number;
+  seduteFuture: number;
+  invitatiPending?: number | null;
+}
+
+export interface DashboardPayload {
+  recentDocuments: DocumentListItem[];
+  nextSitting: NextSitting | null;
+  documentsToAnalyze: DocToAnalyze[];
+  counters: DashboardCounters;
+}
+
+// --- SITTINGS QUERY PARAMS ---
+export interface SittingsQueryParams {
+  from?: string;
+  to?: string;
+  q?: string;
+  period?: 'all' | 'future' | 'past';
+  page?: number;
+  pageSize?: number;
+}
+
+// --- DOCUMENT SUGGESTION ---
+export interface DocumentSuggestion {
+  agendaItemId: string;
+  sittingId: string;
+  sittingData: string;
+  sittingTitolo: string;
+  descrizione: string;
+  documentId: string;
+  documentName: string;
+  score: number;
+}

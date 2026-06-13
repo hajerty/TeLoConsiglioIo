@@ -29,9 +29,14 @@ public class Act
     public ActStatus Status { get; set; } = ActStatus.Bozza;
     public Guid? ParentActId { get; set; }
     public Act? ParentAct { get; set; }
+    /// <summary>JSON array of URL strings — link di spunto</summary>
+    public string ReferenceUrlsJson { get; set; } = "[]";
+    /// <summary>Note libere dell'utente su riferimenti utili</summary>
+    public string? ReferenceNotesMd { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
     public ICollection<ActRevision> Revisions { get; set; } = new List<ActRevision>();
     public ICollection<LegalReference> LegalReferences { get; set; } = new List<LegalReference>();
+    public ICollection<ActAttachment> Attachments { get; set; } = new List<ActAttachment>();
 }

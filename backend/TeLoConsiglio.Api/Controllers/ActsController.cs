@@ -1,10 +1,15 @@
+using System.Text;
 using System.Text.Json;
+using Markdig;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
-using TeLoConsiglio.Api.Dtos;
+using QuestPDF.Fluent;
+using QuestPDF.Helpers;
+using QuestPDF.Infrastructure;
 using TeLoConsiglio.Api.Auth;
+using TeLoConsiglio.Api.Dtos;
 using TeLoConsiglio.Domain.Entities;
 using TeLoConsiglio.Infrastructure.Data;
 using TeLoConsiglio.Infrastructure.Services;
@@ -20,10 +25,18 @@ public class ActsController : ControllerBase
     private readonly UserManager<ApplicationUser> _users;
     private readonly IAIService _ai;
     private readonly ILogger<ActsController> _logger;
+    private readonly IDocumentTextExtractor _extractor;
+    private readonly IWebHostEnvironment _env;
 
-    public ActsController(AppDbContext db, UserManager<ApplicationUser> users, IAIService ai, ILogger<ActsController> logger)
+    public ActsController(
+        AppDbContext db,
+        UserManager<ApplicationUser> users,
+        IAIService ai,
+        ILogger<ActsController> logger,
+        IDocumentTextExtractor extractor,
+        IWebHostEnvironment env)
     {
-        _db = db; _users = users; _ai = ai; _logger = logger;
+        _db = db; _users = users; _ai = ai; _logger = logger; _extractor = extractor; _env = env;
     }
 
     private string GetUserId() => _users.GetUserId(User)!;
@@ -67,7 +80,9 @@ public class ActsController : ControllerBase
             Oggetto = dto.Oggetto,
             ContextNotes = dto.ContextNotes,
             ParentActId = dto.ParentActId,
-            BodyMd = dto.BodyMd ?? ""
+            BodyMd = dto.BodyMd ?? "",
+            ReferenceUrlsJson = JsonSerializer.Serialize(dto.ReferenceUrls ?? new List<string>()),
+            ReferenceNotesMd = dto.ReferenceNotesMd
         };
         _db.Acts.Add(a);
         await _db.SaveChangesAsync();
@@ -89,6 +104,8 @@ public class ActsController : ControllerBase
         a.ContextNotes = dto.ContextNotes;
         a.BodyMd = dto.BodyMd;
         a.Status = dto.Status;
+        a.ReferenceUrlsJson = JsonSerializer.Serialize(dto.ReferenceUrls ?? new List<string>());
+        a.ReferenceNotesMd = dto.ReferenceNotesMd;
         a.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
         return Ok(ToDetail(a));
@@ -105,6 +122,183 @@ public class ActsController : ControllerBase
         return NoContent();
     }
 
+    // ─── Attachments ────────────────────────────────────────────────────────────
+
+    [HttpPost("{id:guid}/attachments")]
+    [RequestSizeLimit(UploadValidator.MaxSizeBytes)]
+    public async Task<ActionResult<ActAttachmentDto>> UploadAttachment(Guid id, IFormFile file)
+    {
+        var uid = GetUserId();
+        var act = await _db.Acts.FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == uid);
+        if (act == null) return NotFound();
+        if (file == null) return BadRequest(new { error = "File mancante" });
+
+        var (ok, error, ext) = UploadValidator.Validate(file);
+        if (!ok) return BadRequest(new { error });
+
+        var dir = Path.Combine(_env.ContentRootPath, "uploads", "act-attachments", uid);
+        Directory.CreateDirectory(dir);
+        var safe = $"{Guid.NewGuid()}{ext}";
+        var path = Path.Combine(dir, safe);
+        using (var s = System.IO.File.Create(path)) await file.CopyToAsync(s);
+
+        var originalSafe = Path.GetFileName(file.FileName ?? "");
+        var text = await _extractor.ExtractTextAsync(path, originalSafe);
+        const int maxExtractedChars = 200_000;
+        if (text.Length > maxExtractedChars)
+            text = text.Substring(0, maxExtractedChars) + "\n[... testo troncato ...]";
+
+        var att = new ActAttachment
+        {
+            ActId = id,
+            FilePath = path,
+            OriginalName = originalSafe,
+            ContentType = file.ContentType ?? "application/octet-stream",
+            SizeBytes = file.Length,
+            ExtractedText = text
+        };
+        _db.ActAttachments.Add(att);
+        await _db.SaveChangesAsync();
+
+        return Ok(new ActAttachmentDto(att.Id, att.OriginalName, att.ContentType, att.SizeBytes, att.CreatedAt));
+    }
+
+    [HttpGet("{id:guid}/attachments")]
+    public async Task<ActionResult<List<ActAttachmentDto>>> ListAttachments(Guid id)
+    {
+        var uid = GetUserId();
+        var act = await _db.Acts.FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == uid);
+        if (act == null) return NotFound();
+
+        var attachments = await _db.ActAttachments
+            .Where(a => a.ActId == id)
+            .OrderBy(a => a.CreatedAt)
+            .ToListAsync();
+
+        return Ok(attachments.Select(a => new ActAttachmentDto(a.Id, a.OriginalName, a.ContentType, a.SizeBytes, a.CreatedAt)).ToList());
+    }
+
+    [HttpGet("{id:guid}/attachments/{attId:guid}/download")]
+    public async Task<IActionResult> DownloadAttachment(Guid id, Guid attId)
+    {
+        var uid = GetUserId();
+        var act = await _db.Acts.FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == uid);
+        if (act == null) return NotFound();
+
+        var att = await _db.ActAttachments.FirstOrDefaultAsync(a => a.Id == attId && a.ActId == id);
+        if (att == null || !System.IO.File.Exists(att.FilePath)) return NotFound();
+
+        var stream = System.IO.File.OpenRead(att.FilePath);
+        return File(stream, att.ContentType, att.OriginalName);
+    }
+
+    [HttpDelete("{id:guid}/attachments/{attId:guid}")]
+    public async Task<IActionResult> DeleteAttachment(Guid id, Guid attId)
+    {
+        var uid = GetUserId();
+        var act = await _db.Acts.FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == uid);
+        if (act == null) return NotFound();
+
+        var att = await _db.ActAttachments.FirstOrDefaultAsync(a => a.Id == attId && a.ActId == id);
+        if (att == null) return NotFound();
+
+        try { if (System.IO.File.Exists(att.FilePath)) System.IO.File.Delete(att.FilePath); } catch { }
+        _db.ActAttachments.Remove(att);
+        await _db.SaveChangesAsync();
+        return NoContent();
+    }
+
+    // ─── PDF Export ─────────────────────────────────────────────────────────────
+
+    [HttpGet("{id:guid}/pdf")]
+    public async Task<IActionResult> ExportPdf(Guid id)
+    {
+        var uid = GetUserId();
+        var user = await _users.FindByIdAsync(uid);
+        var a = await _db.Acts
+            .Include(x => x.LegalReferences)
+            .FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == uid);
+        if (a == null) return NotFound();
+
+        var tipoNome = a.Tipo switch
+        {
+            ActType.Mozione => "MOZIONE",
+            ActType.OrdineDelGiorno => "ORDINE DEL GIORNO",
+            ActType.Delibera => "DELIBERA",
+            ActType.Emendamento => "EMENDAMENTO",
+            _ => a.Tipo.ToString().ToUpper()
+        };
+
+        var displayName = user?.FullName ?? "Consigliere";
+        var partito = user?.Partito ?? "";
+        var comune = user?.Comune ?? "";
+        var dataOggi = a.UpdatedAt.ToString("dd/MM/yyyy");
+
+        // Convert markdown to plain text for PDF body (strip markdown syntax)
+        var plainBody = MarkdownToPlain(a.BodyMd);
+
+        var titleSlug = SlugifyTitle(a.Titolo);
+        var fileName = $"atto-{titleSlug}.pdf";
+
+        var pdfBytes = QuestPDF.Fluent.Document.Create(container =>
+        {
+            container.Page(page =>
+            {
+                page.Size(PageSizes.A4);
+                page.Margin(2, Unit.Centimetre);
+                page.DefaultTextStyle(x => x.FontFamily("Times New Roman").FontSize(11));
+
+                page.Header().Column(col =>
+                {
+                    col.Item().Row(row =>
+                    {
+                        row.RelativeItem().Text("TeLoConsiglio.io")
+                            .Bold().FontSize(14).FontColor(Color.FromHex("#1d4ed8"));
+                        row.ConstantItem(120).AlignRight().Text(dataOggi)
+                            .FontSize(10).FontColor(Color.FromHex("#6b7280"));
+                    });
+                    col.Item().PaddingTop(4).Text($"{tipoNome}: {a.Titolo}")
+                        .Bold().FontSize(13);
+                    col.Item().PaddingTop(2).LineHorizontal(1).LineColor(Color.FromHex("#e5e7eb"));
+                });
+
+                page.Content().PaddingTop(12).Column(col =>
+                {
+                    if (!string.IsNullOrWhiteSpace(a.Oggetto))
+                    {
+                        col.Item().Text($"Oggetto: {a.Oggetto}").Bold().FontSize(11);
+                        col.Item().PaddingTop(8);
+                    }
+                    col.Item().Text(plainBody).FontSize(11).LineHeight(1.4f);
+                });
+
+                page.Footer().Column(col =>
+                {
+                    col.Item().LineHorizontal(1).LineColor(Color.FromHex("#e5e7eb"));
+                    col.Item().PaddingTop(4).Row(row =>
+                    {
+                        row.RelativeItem().DefaultTextStyle(s => s.FontSize(9).FontColor(Color.FromHex("#6b7280"))).Text(txt =>
+                        {
+                            txt.Span($"{displayName}").Bold();
+                            if (!string.IsNullOrWhiteSpace(partito)) txt.Span($" — {partito}");
+                            if (!string.IsNullOrWhiteSpace(comune)) txt.Span($" — Comune di {comune}");
+                        });
+                        row.ConstantItem(60).AlignRight().DefaultTextStyle(s => s.FontSize(9).FontColor(Color.FromHex("#6b7280"))).Text(txt =>
+                        {
+                            txt.CurrentPageNumber();
+                            txt.Span(" / ");
+                            txt.TotalPages();
+                        });
+                    });
+                });
+            });
+        }).GeneratePdf();
+
+        return File(pdfBytes, "application/pdf", fileName);
+    }
+
+    // ─── AI Endpoints ────────────────────────────────────────────────────────────
+
     [HttpPost("{id:guid}/generate-draft")]
     [HttpPost("{id:guid}/ai-draft")]
     [BudgetGuard]
@@ -114,13 +308,18 @@ public class ActsController : ControllerBase
             return StatusCode(503, new { error = "Servizio AI non configurato (GEMINI_API_KEY mancante)." });
 
         var uid = GetUserId();
-        var a = await _db.Acts.FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == uid);
+        var a = await _db.Acts
+            .Include(x => x.Attachments)
+            .FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == uid);
         if (a == null) return NotFound();
 
         var profile = await _db.PoliticalProfiles.FirstOrDefaultAsync(p => p.UserId == uid);
         var programs = await _db.ElectoralPrograms.Where(p => p.UserId == uid).OrderByDescending(p => p.UploadedAt).Take(1).ToListAsync();
-        var puntiText = profile != null
-            ? string.Join(", ", JsonSerializer.Deserialize<List<string>>(profile.PuntiEvidenzaJson) ?? new())
+        var argomentiText = profile != null
+            ? string.Join(", ", JsonSerializer.Deserialize<List<string>>(profile.ArgomentiFortiJson) ?? new())
+            : "";
+        var temiText = profile != null
+            ? string.Join(", ", JsonSerializer.Deserialize<List<string>>(profile.TemiInteresseJson) ?? new())
             : "";
         var progText = programs.FirstOrDefault()?.ExtractedText ?? "";
         if (progText.Length > 8000) progText = progText.Substring(0, 8000) + "\n[... troncato ...]";
@@ -132,6 +331,13 @@ public class ActsController : ControllerBase
             if (parent != null)
                 parentInfo = $"\n\nATTO DI RIFERIMENTO ({parent.Tipo}): {parent.Titolo}\n{parent.BodyMd}\n";
         }
+
+        // Build attachments context
+        var attachmentsText = BuildAttachmentsContext(a.Attachments, maxTotalChars: 30_000);
+
+        // Build reference URLs/notes context
+        var refUrls = JsonSerializer.Deserialize<List<string>>(a.ReferenceUrlsJson) ?? new();
+        var refsSection = BuildReferencesContext(refUrls, a.ReferenceNotesMd);
 
         var tipoNome = a.Tipo switch
         {
@@ -147,7 +353,8 @@ public class ActsController : ControllerBase
 LINEA POLITICA DEL CONSIGLIERE:
 {profile?.LineaPoliticaMd ?? "(non specificata)"}
 
-PUNTI DA METTERE IN EVIDENZA: {puntiText}
+ARGOMENTI FORTI: {argomentiText}
+TEMI DI INTERESSE: {temiText}
 
 ESTRATTO DAL PROGRAMMA ELETTORALE:
 {progText}";
@@ -159,7 +366,7 @@ ESTRATTO DAL PROGRAMMA ELETTORALE:
 TITOLO: {a.Titolo}
 OGGETTO: {a.Oggetto}
 NOTE/CONTESTO: {a.ContextNotes ?? "(nessuna)"}
-{parentInfo}
+{parentInfo}{attachmentsText}{refsSection}
 
 ISTRUZIONI AGGIUNTIVE: {req.AdditionalInstructions ?? "(nessuna)"}
 
@@ -192,20 +399,27 @@ Produci ora il testo completo dell'atto in markdown.";
             return StatusCode(503, new { error = "Servizio AI non configurato." });
 
         var uid = GetUserId();
-        var a = await _db.Acts.FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == uid);
+        var a = await _db.Acts
+            .Include(x => x.Attachments)
+            .FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == uid);
         if (a == null) return NotFound();
 
         var text = string.IsNullOrWhiteSpace(req.Text) ? a.BodyMd : req.Text;
         if (string.IsNullOrWhiteSpace(text)) return BadRequest(new { error = "Testo vuoto." });
 
+        var attachmentsText = BuildAttachmentsContext(a.Attachments, maxTotalChars: 30_000);
+        var refUrls = JsonSerializer.Deserialize<List<string>>(a.ReferenceUrlsJson) ?? new();
+        var refsSection = BuildReferencesContext(refUrls, a.ReferenceNotesMd);
+
         var system = "Sei un giurista esperto di diritto degli enti locali italiani. Identifica i riferimenti normativi pertinenti al testo fornito. " +
                      "Rispondi SOLO con un oggetto JSON valido secondo lo schema indicato. Italiano.";
-        var user = $@"Analizza il seguente testo di atto comunale e suggerisci i riferimenti normativi pertinenti (TUEL D.Lgs. 267/2000, Costituzione, leggi statali, leggi regionali, statuto comunale, regolamenti). Per ciascuno indica una citazione precisa (es. ""art. 42 D.Lgs. 267/2000"") e una breve motivazione del perché è pertinente.
+        var userMsg = $@"Analizza il seguente testo di atto comunale e suggerisci i riferimenti normativi pertinenti (TUEL D.Lgs. 267/2000, Costituzione, leggi statali, leggi regionali, statuto comunale, regolamenti). Per ciascuno indica una citazione precisa (es. ""art. 42 D.Lgs. 267/2000"") e una breve motivazione del perché è pertinente.
 
 TESTO:
 ---
 {text}
 ---
+{attachmentsText}{refsSection}
 
 Restituisci ESCLUSIVAMENTE JSON nella forma:
 {{
@@ -217,7 +431,7 @@ Restituisci ESCLUSIVAMENTE JSON nella forma:
 
         try
         {
-            var result = await _ai.CompleteWithUsageAsync(system, user, maxTokens: 2000);
+            var result = await _ai.CompleteWithUsageAsync(system, userMsg, maxTokens: 2000);
             await LogUsageAsync(uid, "acts.legal-refs.suggest", result);
             var raw = result.Text;
             var json = ExtractJson(raw);
@@ -229,7 +443,6 @@ Restituisci ESCLUSIVAMENTE JSON nella forma:
                 .Where(r => !string.IsNullOrWhiteSpace(r.Citation))
                 .ToList();
 
-            // Persist as un-confirmed references
             foreach (var r in refs)
             {
                 _db.LegalReferences.Add(new LegalReference
@@ -323,11 +536,82 @@ Restituisci ESCLUSIVAMENTE JSON nella forma:
         return NoContent();
     }
 
-    private static ActDetailDto ToDetail(Act a) => new(
-        a.Id, a.Tipo, a.Titolo, a.Oggetto, a.ContextNotes, a.BodyMd, a.Status, a.ParentActId, a.CreatedAt, a.UpdatedAt,
-        a.Revisions.OrderByDescending(r => r.CreatedAt).Select(r => new ActRevisionDto(r.Id, r.BodyMd, r.CreatedAt, r.AuthorId)).ToList(),
-        a.LegalReferences.OrderByDescending(r => r.CreatedAt).Select(r => new LegalReferenceDto(r.Id, r.Citation, r.Description, r.Inserted, r.ConfirmedAt)).ToList()
-    );
+    // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+    private static ActDetailDto ToDetail(Act a)
+    {
+        var refUrls = JsonSerializer.Deserialize<List<string>>(a.ReferenceUrlsJson ?? "[]") ?? new List<string>();
+        return new ActDetailDto(
+            a.Id, a.Tipo, a.Titolo, a.Oggetto, a.ContextNotes, a.BodyMd, a.Status, a.ParentActId,
+            a.CreatedAt, a.UpdatedAt,
+            refUrls,
+            a.ReferenceNotesMd,
+            a.Revisions.OrderByDescending(r => r.CreatedAt).Select(r => new ActRevisionDto(r.Id, r.BodyMd, r.CreatedAt, r.AuthorId)).ToList(),
+            a.LegalReferences.OrderByDescending(r => r.CreatedAt).Select(r => new LegalReferenceDto(r.Id, r.Citation, r.Description, r.Inserted, r.ConfirmedAt)).ToList()
+        );
+    }
+
+    private static string BuildAttachmentsContext(ICollection<ActAttachment> attachments, int maxTotalChars)
+    {
+        if (attachments == null || !attachments.Any()) return "";
+        var sb = new StringBuilder();
+        sb.AppendLine("\n\nALLEGATI ALL'ATTO:");
+        int used = 0;
+        foreach (var att in attachments)
+        {
+            if (string.IsNullOrWhiteSpace(att.ExtractedText)) continue;
+            var remaining = maxTotalChars - used;
+            if (remaining <= 0) break;
+            var chunk = att.ExtractedText.Length > remaining
+                ? att.ExtractedText.Substring(0, remaining) + "\n[... troncato ...]"
+                : att.ExtractedText;
+            sb.AppendLine($"\n--- ALLEGATO: {att.OriginalName} ---");
+            sb.AppendLine(chunk);
+            used += chunk.Length;
+        }
+        return sb.ToString();
+    }
+
+    private static string BuildReferencesContext(List<string> urls, string? notesMd)
+    {
+        if ((urls == null || !urls.Any()) && string.IsNullOrWhiteSpace(notesMd)) return "";
+        var sb = new StringBuilder();
+        sb.AppendLine("\n\nRIFERIMENTI E LINK DI SPUNTO:");
+        if (urls != null && urls.Any())
+        {
+            foreach (var url in urls)
+                sb.AppendLine($"- {url}");
+        }
+        if (!string.IsNullOrWhiteSpace(notesMd))
+        {
+            sb.AppendLine("\nNote riferimenti:");
+            sb.AppendLine(notesMd);
+        }
+        return sb.ToString();
+    }
+
+    private static string MarkdownToPlain(string md)
+    {
+        if (string.IsNullOrWhiteSpace(md)) return "";
+        // Use Markdig to strip markdown to plain text
+        var pipeline = new MarkdownPipelineBuilder().Build();
+        var plain = Markdown.ToPlainText(md, pipeline);
+        return plain;
+    }
+
+    private static string SlugifyTitle(string title)
+    {
+        if (string.IsNullOrWhiteSpace(title)) return "atto";
+        var slug = title.ToLowerInvariant();
+        slug = System.Text.RegularExpressions.Regex.Replace(slug, @"[àáâãäå]", "a");
+        slug = System.Text.RegularExpressions.Regex.Replace(slug, @"[èéêë]", "e");
+        slug = System.Text.RegularExpressions.Regex.Replace(slug, @"[ìíîï]", "i");
+        slug = System.Text.RegularExpressions.Regex.Replace(slug, @"[òóôõö]", "o");
+        slug = System.Text.RegularExpressions.Regex.Replace(slug, @"[ùúûü]", "u");
+        slug = System.Text.RegularExpressions.Regex.Replace(slug, @"[^a-z0-9\s-]", "");
+        slug = System.Text.RegularExpressions.Regex.Replace(slug, @"[\s-]+", "-").Trim('-');
+        return slug.Length > 60 ? slug.Substring(0, 60).TrimEnd('-') : slug;
+    }
 
     private async Task LogUsageAsync(string userId, string operation, AICompletionResult r)
     {

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TeLoConsiglio.Infrastructure.Data;
@@ -11,9 +12,11 @@ using TeLoConsiglio.Infrastructure.Data;
 namespace TeLoConsiglio.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260613140758_PoliticalProfileIndirizzoMandato")]
+    partial class PoliticalProfileIndirizzoMandato
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -207,7 +210,7 @@ namespace TeLoConsiglio.Infrastructure.Migrations
 
                     b.HasIndex("ParentActId");
 
-                    b.ToTable("Acts", (string)null);
+                    b.ToTable("Acts");
                 });
 
             modelBuilder.Entity("TeLoConsiglio.Domain.Entities.ActAttachment", b =>
@@ -245,7 +248,7 @@ namespace TeLoConsiglio.Infrastructure.Migrations
 
                     b.HasIndex("ActId");
 
-                    b.ToTable("ActAttachments", (string)null);
+                    b.ToTable("ActAttachments");
                 });
 
             modelBuilder.Entity("TeLoConsiglio.Domain.Entities.ActRevision", b =>
@@ -274,7 +277,7 @@ namespace TeLoConsiglio.Infrastructure.Migrations
 
                     b.HasIndex("AuthorId");
 
-                    b.ToTable("ActRevisions", (string)null);
+                    b.ToTable("ActRevisions");
                 });
 
             modelBuilder.Entity("TeLoConsiglio.Domain.Entities.AgendaItem", b =>
@@ -317,7 +320,7 @@ namespace TeLoConsiglio.Infrastructure.Migrations
 
                     b.HasIndex("SittingId");
 
-                    b.ToTable("AgendaItems", (string)null);
+                    b.ToTable("AgendaItems");
                 });
 
             modelBuilder.Entity("TeLoConsiglio.Domain.Entities.AgendaItemAssignment", b =>
@@ -332,7 +335,7 @@ namespace TeLoConsiglio.Infrastructure.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("AgendaItemAssignments", (string)null);
+                    b.ToTable("AgendaItemAssignments");
                 });
 
             modelBuilder.Entity("TeLoConsiglio.Domain.Entities.ApplicationUser", b =>
@@ -450,7 +453,7 @@ namespace TeLoConsiglio.Infrastructure.Migrations
 
                     b.HasIndex("OwnerId");
 
-                    b.ToTable("Documents", (string)null);
+                    b.ToTable("Documents");
                 });
 
             modelBuilder.Entity("TeLoConsiglio.Domain.Entities.DocumentSummary", b =>
@@ -482,7 +485,7 @@ namespace TeLoConsiglio.Infrastructure.Migrations
                     b.HasIndex("DocumentId")
                         .IsUnique();
 
-                    b.ToTable("DocumentSummaries", (string)null);
+                    b.ToTable("DocumentSummaries");
                 });
 
             modelBuilder.Entity("TeLoConsiglio.Domain.Entities.ElectoralProgram", b =>
@@ -514,7 +517,7 @@ namespace TeLoConsiglio.Infrastructure.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("ElectoralPrograms", (string)null);
+                    b.ToTable("ElectoralPrograms");
                 });
 
             modelBuilder.Entity("TeLoConsiglio.Domain.Entities.Invitation", b =>
@@ -570,7 +573,7 @@ namespace TeLoConsiglio.Infrastructure.Migrations
                     b.HasIndex("Token")
                         .IsUnique();
 
-                    b.ToTable("Invitations", (string)null);
+                    b.ToTable("Invitations");
                 });
 
             modelBuilder.Entity("TeLoConsiglio.Domain.Entities.LegalReference", b =>
@@ -603,7 +606,7 @@ namespace TeLoConsiglio.Infrastructure.Migrations
 
                     b.HasIndex("ActId");
 
-                    b.ToTable("LegalReferences", (string)null);
+                    b.ToTable("LegalReferences");
                 });
 
             modelBuilder.Entity("TeLoConsiglio.Domain.Entities.PoliticalProfile", b =>
@@ -643,7 +646,7 @@ namespace TeLoConsiglio.Infrastructure.Migrations
                     b.HasIndex("UserId")
                         .IsUnique();
 
-                    b.ToTable("PoliticalProfiles", (string)null);
+                    b.ToTable("PoliticalProfiles");
                 });
 
             modelBuilder.Entity("TeLoConsiglio.Domain.Entities.RefreshToken", b =>
@@ -679,7 +682,7 @@ namespace TeLoConsiglio.Infrastructure.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("RefreshTokens", (string)null);
+                    b.ToTable("RefreshTokens");
                 });
 
             modelBuilder.Entity("TeLoConsiglio.Domain.Entities.Sitting", b =>
@@ -710,7 +713,7 @@ namespace TeLoConsiglio.Infrastructure.Migrations
 
                     b.HasIndex("CreatedById");
 
-                    b.ToTable("Sittings", (string)null);
+                    b.ToTable("Sittings");
                 });
 
             modelBuilder.Entity("TeLoConsiglio.Domain.Entities.UsageLog", b =>
@@ -751,7 +754,7 @@ namespace TeLoConsiglio.Infrastructure.Migrations
 
                     b.HasIndex("UserId", "CreatedAt");
 
-                    b.ToTable("UsageLogs", (string)null);
+                    b.ToTable("UsageLogs");
                 });
 
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>

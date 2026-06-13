@@ -4,11 +4,15 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
+using QuestPDF.Infrastructure;
 using TeLoConsiglio.Api.Auth;
 using TeLoConsiglio.Api.Seed;
+using TeLoConsiglio.Api.Services;
 using TeLoConsiglio.Domain.Entities;
 using TeLoConsiglio.Infrastructure.Data;
 using TeLoConsiglio.Infrastructure.Services;
+
+QuestPDF.Settings.License = LicenseType.Community;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -123,6 +127,7 @@ builder.Services.AddHttpClient<IAIService, GeminiAIService>(client =>
 {
     client.Timeout = TimeSpan.FromSeconds(60);
 });
+builder.Services.AddSingleton<PartyManifestService>();
 
 // ----- API -----
 builder.Services.AddControllers().AddJsonOptions(opt =>

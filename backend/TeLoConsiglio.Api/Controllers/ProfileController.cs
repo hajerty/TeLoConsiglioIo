@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using TeLoConsiglio.Api.Auth;
 using TeLoConsiglio.Api.Dtos;
+using TeLoConsiglio.Api.Services;
 using TeLoConsiglio.Domain.Entities;
 using TeLoConsiglio.Infrastructure.Data;
 using TeLoConsiglio.Infrastructure.Services;
@@ -20,10 +21,16 @@ public class ProfileController : ControllerBase
     private readonly UserManager<ApplicationUser> _users;
     private readonly IDocumentTextExtractor _extractor;
     private readonly IWebHostEnvironment _env;
+    private readonly PartyManifestService _partyManifests;
 
-    public ProfileController(AppDbContext db, UserManager<ApplicationUser> users, IDocumentTextExtractor extractor, IWebHostEnvironment env)
+    public ProfileController(
+        AppDbContext db,
+        UserManager<ApplicationUser> users,
+        IDocumentTextExtractor extractor,
+        IWebHostEnvironment env,
+        PartyManifestService partyManifests)
     {
-        _db = db; _users = users; _extractor = extractor; _env = env;
+        _db = db; _users = users; _extractor = extractor; _env = env; _partyManifests = partyManifests;
     }
 
     private string GetUserId() => _users.GetUserId(User) ?? throw new InvalidOperationException();
@@ -33,13 +40,39 @@ public class ProfileController : ControllerBase
     {
         var uid = GetUserId();
         var prof = await _db.PoliticalProfiles.FirstOrDefaultAsync(p => p.UserId == uid);
-        if (prof == null) return Ok(new PoliticalProfileDto("", new List<string>()));
-        var punti = JsonSerializer.Deserialize<List<string>>(prof.PuntiEvidenzaJson) ?? new List<string>();
-        return Ok(new PoliticalProfileDto(prof.LineaPoliticaMd, punti));
+
+        // Auto-populate from party manifest if profile is empty
+        if ((prof == null || string.IsNullOrWhiteSpace(prof.LineaPoliticaMd)))
+        {
+            var user = await _users.FindByIdAsync(uid);
+            if (user != null && !string.IsNullOrWhiteSpace(user.Partito))
+            {
+                var manifest = _partyManifests.GetManifest(user.Partito);
+                if (manifest != null)
+                {
+                    if (prof == null)
+                    {
+                        prof = new PoliticalProfile { UserId = uid };
+                        _db.PoliticalProfiles.Add(prof);
+                    }
+                    prof.LineaPoliticaMd = manifest.LineaPoliticaMd;
+                    prof.LineaPoliticaSource = LineaPoliticaSource.Partito;
+                    prof.UpdatedAt = DateTime.UtcNow;
+                    await _db.SaveChangesAsync();
+                }
+            }
+        }
+
+        if (prof == null)
+            return Ok(new PoliticalProfileDto("", new List<string>(), new List<string>(), LineaPoliticaSource.Partito));
+
+        var argomenti = JsonSerializer.Deserialize<List<string>>(prof.ArgomentiFortiJson) ?? new List<string>();
+        var temi = JsonSerializer.Deserialize<List<string>>(prof.TemiInteresseJson) ?? new List<string>();
+        return Ok(new PoliticalProfileDto(prof.LineaPoliticaMd, argomenti, temi, prof.LineaPoliticaSource));
     }
 
     [HttpPut("political")]
-    public async Task<ActionResult<PoliticalProfileDto>> UpdatePolitical([FromBody] PoliticalProfileDto dto)
+    public async Task<ActionResult<PoliticalProfileDto>> UpdatePolitical([FromBody] PoliticalProfileUpdateDto dto)
     {
         var uid = GetUserId();
         var prof = await _db.PoliticalProfiles.FirstOrDefaultAsync(p => p.UserId == uid);
@@ -48,11 +81,59 @@ public class ProfileController : ControllerBase
             prof = new PoliticalProfile { UserId = uid };
             _db.PoliticalProfiles.Add(prof);
         }
-        prof.LineaPoliticaMd = dto.LineaPoliticaMd ?? "";
-        prof.PuntiEvidenzaJson = JsonSerializer.Serialize(dto.PuntiEvidenza ?? new List<string>());
+
+        // Detect if lineaPoliticaMd changed from the party manifest → mark as Manuale
+        if (dto.LineaPoliticaMd != null)
+        {
+            var user = await _users.FindByIdAsync(uid);
+            var manifest = (user != null && !string.IsNullOrWhiteSpace(user.Partito))
+                ? _partyManifests.GetManifest(user.Partito)
+                : null;
+            var isManifestText = manifest != null &&
+                string.Equals(dto.LineaPoliticaMd.Trim(), manifest.LineaPoliticaMd.Trim(), StringComparison.Ordinal);
+            prof.LineaPoliticaSource = isManifestText ? LineaPoliticaSource.Partito : LineaPoliticaSource.Manuale;
+            prof.LineaPoliticaMd = dto.LineaPoliticaMd;
+        }
+
+        if (dto.ArgomentiForti != null)
+            prof.ArgomentiFortiJson = JsonSerializer.Serialize(dto.ArgomentiForti);
+        if (dto.TemiInteresse != null)
+            prof.TemiInteresseJson = JsonSerializer.Serialize(dto.TemiInteresse);
+
         prof.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
-        return Ok(dto);
+
+        var argomenti = JsonSerializer.Deserialize<List<string>>(prof.ArgomentiFortiJson) ?? new List<string>();
+        var temi = JsonSerializer.Deserialize<List<string>>(prof.TemiInteresseJson) ?? new List<string>();
+        return Ok(new PoliticalProfileDto(prof.LineaPoliticaMd, argomenti, temi, prof.LineaPoliticaSource));
+    }
+
+    [HttpPost("political/reset-linea")]
+    public async Task<ActionResult<PoliticalProfileDto>> ResetLinea()
+    {
+        var uid = GetUserId();
+        var user = await _users.FindByIdAsync(uid);
+        if (user == null || string.IsNullOrWhiteSpace(user.Partito))
+            return BadRequest(new { error = "Partito non impostato nel profilo utente." });
+
+        var manifest = _partyManifests.GetManifest(user.Partito);
+        if (manifest == null)
+            return BadRequest(new { error = $"Nessun manifesto disponibile per il partito '{user.Partito}'." });
+
+        var prof = await _db.PoliticalProfiles.FirstOrDefaultAsync(p => p.UserId == uid);
+        if (prof == null)
+        {
+            prof = new PoliticalProfile { UserId = uid };
+            _db.PoliticalProfiles.Add(prof);
+        }
+        prof.LineaPoliticaMd = manifest.LineaPoliticaMd;
+        prof.LineaPoliticaSource = LineaPoliticaSource.Partito;
+        prof.UpdatedAt = DateTime.UtcNow;
+        await _db.SaveChangesAsync();
+
+        var argomenti = JsonSerializer.Deserialize<List<string>>(prof.ArgomentiFortiJson) ?? new List<string>();
+        var temi = JsonSerializer.Deserialize<List<string>>(prof.TemiInteresseJson) ?? new List<string>();
+        return Ok(new PoliticalProfileDto(prof.LineaPoliticaMd, argomenti, temi, prof.LineaPoliticaSource));
     }
 
     [HttpGet("programs")]

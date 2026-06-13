@@ -14,6 +14,7 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
     public DbSet<DocumentSummary> DocumentSummaries => Set<DocumentSummary>();
     public DbSet<Act> Acts => Set<Act>();
     public DbSet<ActRevision> ActRevisions => Set<ActRevision>();
+    public DbSet<ActAttachment> ActAttachments => Set<ActAttachment>();
     public DbSet<LegalReference> LegalReferences => Set<LegalReference>();
     public DbSet<Sitting> Sittings => Set<Sitting>();
     public DbSet<AgendaItem> AgendaItems => Set<AgendaItem>();
@@ -75,6 +76,12 @@ public class AppDbContext : IdentityDbContext<ApplicationUser>
             .WithMany()
             .HasForeignKey(r => r.AuthorId)
             .OnDelete(DeleteBehavior.Restrict);
+
+        b.Entity<ActAttachment>()
+            .HasOne(a => a.Act)
+            .WithMany(a => a.Attachments)
+            .HasForeignKey(a => a.ActId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         b.Entity<LegalReference>()
             .HasOne(l => l.Act)

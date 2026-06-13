@@ -98,10 +98,16 @@ Tutte le rotte (eccetto `/api/auth/*` e `/health`) richiedono header `Authorizat
 - `POST /api/auth/refresh` - refresh token
 - `GET  /api/auth/me` - utente corrente (espone `comune, partito, gruppo, roles`)
 
+### Partiti (manifesti)
+
+- `GET  /api/party-manifests` — elenco partiti `{ key, fullName }[]` (pubblico, no auth)
+- `GET  /api/party-manifests/{key}` — testo linea politica del partito (auth richiesta)
+
 ### Profilo politico
 
-- `GET  /api/profile/political`
-- `PUT  /api/profile/political`
+- `GET  /api/profile/political` — restituisce `lineaPoliticaMd, argomentiForti, temiInteresse, lineaPoliticaSource`; auto-popola dal manifesto partito se vuoto
+- `PUT  /api/profile/political` — aggiorna profilo; imposta `lineaPoliticaSource=Manuale` se il testo differisce dal manifesto
+- `POST /api/profile/political/reset-linea` — ri-applica il manifesto del partito (resetta source=Partito)
 - `GET  /api/profile/programs`
 - `POST /api/profile/programs` (multipart upload)
 - `DELETE /api/profile/programs/{id}`

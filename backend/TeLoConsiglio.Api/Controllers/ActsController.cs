@@ -18,10 +18,10 @@ public class ActsController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly UserManager<ApplicationUser> _users;
-    private readonly IAnthropicService _ai;
+    private readonly IAIService _ai;
     private readonly ILogger<ActsController> _logger;
 
-    public ActsController(AppDbContext db, UserManager<ApplicationUser> users, IAnthropicService ai, ILogger<ActsController> logger)
+    public ActsController(AppDbContext db, UserManager<ApplicationUser> users, IAIService ai, ILogger<ActsController> logger)
     {
         _db = db; _users = users; _ai = ai; _logger = logger;
     }
@@ -111,7 +111,7 @@ public class ActsController : ControllerBase
     public async Task<ActionResult<GenerateDraftResponse>> GenerateDraft(Guid id, [FromBody] GenerateDraftRequest req)
     {
         if (!_ai.IsConfigured)
-            return StatusCode(503, new { error = "Servizio AI non configurato (ANTHROPIC_API_KEY mancante)." });
+            return StatusCode(503, new { error = "Servizio AI non configurato (GEMINI_API_KEY mancante)." });
 
         var uid = GetUserId();
         var a = await _db.Acts.FirstOrDefaultAsync(x => x.Id == id && x.OwnerId == uid);
@@ -173,7 +173,7 @@ Produci ora il testo completo dell'atto in markdown.";
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Errore Anthropic draft");
+            _logger.LogError(ex, "Errore Gemini draft");
             return StatusCode(502, new { error = "Errore AI: " + ex.Message });
         }
     }
@@ -241,7 +241,7 @@ Restituisci ESCLUSIVAMENTE JSON nella forma:
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Errore Anthropic legal-refs");
+            _logger.LogError(ex, "Errore Gemini legal-refs");
             return StatusCode(502, new { error = "Errore AI: " + ex.Message });
         }
     }
@@ -319,7 +319,7 @@ Restituisci ESCLUSIVAMENTE JSON nella forma:
         a.LegalReferences.OrderByDescending(r => r.CreatedAt).Select(r => new LegalReferenceDto(r.Id, r.Citation, r.Description, r.Inserted, r.ConfirmedAt)).ToList()
     );
 
-    private async Task LogUsageAsync(string userId, string operation, AnthropicResult r)
+    private async Task LogUsageAsync(string userId, string operation, AICompletionResult r)
     {
         _db.UsageLogs.Add(new UsageLog
         {

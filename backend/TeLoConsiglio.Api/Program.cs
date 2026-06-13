@@ -113,7 +113,7 @@ builder.Services.AddAuthorization();
 
 // ----- App services -----
 builder.Services.AddScoped<IDocumentTextExtractor, DocumentTextExtractor>();
-builder.Services.AddHttpClient<IAnthropicService, AnthropicService>(client =>
+builder.Services.AddHttpClient<IAIService, GeminiAIService>(client =>
 {
     client.Timeout = TimeSpan.FromSeconds(60);
 });

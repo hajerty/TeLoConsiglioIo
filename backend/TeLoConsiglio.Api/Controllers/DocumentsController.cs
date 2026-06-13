@@ -19,11 +19,11 @@ public class DocumentsController : ControllerBase
     private readonly AppDbContext _db;
     private readonly UserManager<ApplicationUser> _users;
     private readonly IDocumentTextExtractor _extractor;
-    private readonly IAnthropicService _ai;
+    private readonly IAIService _ai;
     private readonly IWebHostEnvironment _env;
     private readonly ILogger<DocumentsController> _logger;
 
-    public DocumentsController(AppDbContext db, UserManager<ApplicationUser> users, IDocumentTextExtractor extractor, IAnthropicService ai, IWebHostEnvironment env, ILogger<DocumentsController> logger)
+    public DocumentsController(AppDbContext db, UserManager<ApplicationUser> users, IDocumentTextExtractor extractor, IAIService ai, IWebHostEnvironment env, ILogger<DocumentsController> logger)
     {
         _db = db; _users = users; _extractor = extractor; _ai = ai; _env = env; _logger = logger;
     }
@@ -110,7 +110,7 @@ public class DocumentsController : ControllerBase
     public async Task<ActionResult<DocumentSummaryDto>> Summarize(Guid id)
     {
         if (!_ai.IsConfigured)
-            return StatusCode(503, new { error = "Servizio AI non configurato (ANTHROPIC_API_KEY mancante)." });
+            return StatusCode(503, new { error = "Servizio AI non configurato (GEMINI_API_KEY mancante)." });
 
         var uid = GetUserId();
         var doc = await _db.Documents.Include(d => d.Summary).FirstOrDefaultAsync(d => d.Id == id && d.OwnerId == uid);
@@ -186,7 +186,7 @@ Restituisci ESCLUSIVAMENTE un oggetto JSON con questa struttura:
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Errore Anthropic summarize");
+            _logger.LogError(ex, "Errore Gemini summarize");
             return StatusCode(502, new { error = "Errore durante la generazione del riassunto: " + ex.Message });
         }
     }

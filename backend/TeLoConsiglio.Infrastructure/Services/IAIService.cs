@@ -1,6 +1,6 @@
 namespace TeLoConsiglio.Infrastructure.Services;
 
-public record AnthropicResult(
+public record AICompletionResult(
     string Text,
     string Model,
     int InputTokens,
@@ -10,7 +10,7 @@ public record AnthropicResult(
     decimal EstimatedCostUsd
 );
 
-public interface IAnthropicService
+public interface IAIService
 {
     bool IsConfigured { get; }
     string Model { get; }
@@ -18,8 +18,8 @@ public interface IAnthropicService
     Task<string> CompleteAsync(string systemPrompt, string userPrompt, int maxTokens = 4000, CancellationToken ct = default);
     Task<string> CompleteAsync(string cacheableSystem, string volatileSystem, string userPrompt, int maxTokens = 4000, CancellationToken ct = default);
 
-    Task<AnthropicResult> CompleteWithUsageAsync(string systemPrompt, string userPrompt, int maxTokens = 4000, CancellationToken ct = default);
-    Task<AnthropicResult> CompleteWithUsageAsync(string cacheableSystem, string volatileSystem, string userPrompt, int maxTokens = 4000, CancellationToken ct = default);
+    Task<AICompletionResult> CompleteWithUsageAsync(string systemPrompt, string userPrompt, int maxTokens = 4000, CancellationToken ct = default);
+    Task<AICompletionResult> CompleteWithUsageAsync(string cacheableSystem, string volatileSystem, string userPrompt, int maxTokens = 4000, CancellationToken ct = default);
 
     decimal EstimateCostUsd(string model, int inputTokens, int outputTokens, int cachedReadTokens, int cacheCreationTokens);
 }

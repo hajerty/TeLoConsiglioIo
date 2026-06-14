@@ -163,6 +163,10 @@ else
 // ----- Notification service -----
 builder.Services.AddScoped<INotificationService, EmailNotificationService>();
 
+// ----- Audit logger -----
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IAuditLogger, AuditLogger>();
+
 // ----- API -----
 builder.Services.AddControllers().AddJsonOptions(opt =>
 {

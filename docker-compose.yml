@@ -40,6 +40,12 @@ services:
       FRONTEND_URL: ${Frontend__Url:-http://localhost:8080}
       ENABLE_SWAGGER: "true"
       DOC_ENCRYPTION_KEY: ${DOC_ENCRYPTION_KEY:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-no-reply@teloconsiglio.io}
+      SMTP_USE_SSL: ${SMTP_USE_SSL:-true}
     ports:
       - "5000:8080"
     volumes:

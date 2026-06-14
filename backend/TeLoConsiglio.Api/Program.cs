@@ -131,6 +131,17 @@ builder.Services.AddSingleton<PartyManifestService>();
 builder.Services.AddSingleton<AesGcmFileEncryptor>();
 builder.Services.AddSingleton<IFileEncryptor>(sp => sp.GetRequiredService<AesGcmFileEncryptor>());
 
+// ----- Email sender -----
+var smtpHost = builder.Configuration["SMTP_HOST"];
+if (!string.IsNullOrWhiteSpace(smtpHost))
+{
+    builder.Services.AddSingleton<IEmailSender, SmtpEmailSender>();
+}
+else
+{
+    builder.Services.AddSingleton<IEmailSender, ConsoleEmailSender>();
+}
+
 // ----- API -----
 builder.Services.AddControllers().AddJsonOptions(opt =>
 {
@@ -235,6 +246,13 @@ var app = builder.Build();
             "I file caricati dagli utenti sono salvati IN CHIARO su disco. " +
             "Genera la chiave con 'openssl rand -base64 32' e impostala come variabile d'ambiente DOC_ENCRYPTION_KEY.");
     }
+}
+
+// ----- Email startup warning -----
+if (string.IsNullOrWhiteSpace(app.Configuration["SMTP_HOST"]))
+{
+    var emailLogger = app.Services.GetRequiredService<ILogger<Program>>();
+    emailLogger.LogWarning("Email service: console fallback. Configura SMTP_HOST per email reali.");
 }
 
 // ----- DB migrate + seed -----

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -25,14 +26,25 @@ public class SittingsController : ControllerBase
     private readonly IDocumentTextExtractor _extractor;
     private readonly IWebHostEnvironment _env;
     private readonly IFileEncryptor _fileEncryptor;
+    private readonly IAIService _ai;
+    private readonly ILogger<SittingsController> _logger;
 
-    public SittingsController(AppDbContext db, UserManager<ApplicationUser> users, IDocumentTextExtractor extractor, IWebHostEnvironment env, IFileEncryptor fileEncryptor)
+    public SittingsController(
+        AppDbContext db,
+        UserManager<ApplicationUser> users,
+        IDocumentTextExtractor extractor,
+        IWebHostEnvironment env,
+        IFileEncryptor fileEncryptor,
+        IAIService ai,
+        ILogger<SittingsController> logger)
     {
         _db = db;
         _users = users;
         _extractor = extractor;
         _env = env;
         _fileEncryptor = fileEncryptor;
+        _ai = ai;
+        _logger = logger;
     }
 
     private string? GetUserId() => _users.GetUserId(User);
@@ -484,6 +496,153 @@ public class SittingsController : ControllerBase
         return Ok(ToItemDto(item));
     }
 
+    /// <summary>
+    /// Importa una convocazione (PDF/DOCX/TXT) e la parsa via AI.
+    /// Restituisce i metadati strutturati (data, luogo, titolo, punti ODG) senza creare la Sitting.
+    /// Solo Capogruppo, Vice o Admin.
+    /// </summary>
+    [HttpPost("import-pdf")]
+    [Authorize(Policy = "RequireCapogruppoOrAdmin")]
+    [BudgetGuard]
+    [RequestSizeLimit(UploadValidator.MaxSizeBytes)]
+    public async Task<ActionResult<SittingParsedDto>> ImportPdf(IFormFile file, CancellationToken ct)
+    {
+        var uid = GetUserId();
+        if (uid == null) return Unauthorized();
+
+        if (!_ai.IsConfigured)
+            return StatusCode(503, new { error = "GEMINI_API_KEY non configurata. Feature AI non disponibile." });
+
+        if (file == null || file.Length == 0)
+            return BadRequest(new { error = "File mancante o vuoto." });
+
+        var (ok, error, ext) = UploadValidator.Validate(file);
+        if (!ok) return BadRequest(new { error });
+
+        // Salva temporaneamente in uploads/temp-imports/{userId}/{guid}.{ext}
+        var tempDir = Path.Combine(_env.ContentRootPath, "uploads", "temp-imports", uid);
+        Directory.CreateDirectory(tempDir);
+        var tempFile = Path.Combine(tempDir, $"{Guid.NewGuid()}{ext}");
+
+        try
+        {
+            string extractedText;
+            var originalName = Path.GetFileName(file.FileName ?? $"convocazione{ext}");
+
+            if (_fileEncryptor.IsEnabled)
+            {
+                await _fileEncryptor.EncryptToFileAsync(file.OpenReadStream(), tempFile);
+                using var decrypted = await _fileEncryptor.OpenDecryptedReadAsync(tempFile);
+                extractedText = await _extractor.ExtractTextFromStreamAsync(decrypted, originalName, ct);
+            }
+            else
+            {
+                using (var fs = System.IO.File.Create(tempFile))
+                    await file.CopyToAsync(fs, ct);
+                extractedText = await _extractor.ExtractTextAsync(tempFile, originalName, ct);
+            }
+
+            const int maxChars = 30_000;
+            if (extractedText.Length > maxChars)
+                extractedText = extractedText.Substring(0, maxChars);
+
+            var cacheableSystem =
+                "Sei un assistente per consiglieri comunali italiani. " +
+                "Devi estrarre da una convocazione di consiglio comunale i metadati strutturati. " +
+                "Rispondi SEMPRE in JSON valido.";
+
+            var volatileSystem = "Parsa la convocazione fornita.";
+
+            var userPrompt =
+                "Estrai da questa convocazione di consiglio comunale: data e ora seduta, luogo, titolo\n" +
+                "(es. 'Seduta ordinaria del Consiglio Comunale di Milano'), e la lista numerata dei punti\n" +
+                "ODG con descrizione completa.\n\n" +
+                "TESTO CONVOCAZIONE:\n---\n" + extractedText + "\n---\n\n" +
+                "Rispondi ESCLUSIVAMENTE con JSON:\n" +
+                "{\n" +
+                "  \"data\": \"YYYY-MM-DDTHH:mm:ss\" (ISO 8601 UTC; se non trovata o ambigua, null),\n" +
+                "  \"luogo\": \"...\",\n" +
+                "  \"titolo\": \"...\",\n" +
+                "  \"agendaItems\": [ { \"ordine\": 1, \"descrizione\": \"...\" }, ... ]\n" +
+                "}";
+
+            AICompletionResult result;
+            try
+            {
+                result = await _ai.CompleteWithUsageAsync(cacheableSystem, volatileSystem, userPrompt, maxTokens: 4000, ct);
+            }
+            catch (AIQuotaExceededException ex)
+            {
+                _logger.LogWarning("Gemini quota exceeded durante import-pdf: {Msg}", ex.Message);
+                return StatusCode(429, new { error = "ai_daily_quota_exceeded", message = "Limite giornaliero AI raggiunto, riprova domani." });
+            }
+
+            // Log usage
+            _db.UsageLogs.Add(new UsageLog
+            {
+                UserId = uid,
+                Operation = "sittings.import-pdf",
+                Model = result.Model,
+                InputTokens = result.InputTokens,
+                OutputTokens = result.OutputTokens,
+                CachedInputTokens = result.CachedReadTokens,
+                EstimatedCostUsd = result.EstimatedCostUsd
+            });
+            await _db.SaveChangesAsync(ct);
+
+            _logger.LogInformation(
+                "import-pdf AI: model={Model} in={In} out={Out} cost={Cost}",
+                result.Model, result.InputTokens, result.OutputTokens, result.EstimatedCostUsd);
+
+            // Parsa il JSON
+            var json = ExtractJson(result.Text);
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            DateTime? data = null;
+            if (root.TryGetProperty("data", out var dataProp) && dataProp.ValueKind == JsonValueKind.String)
+            {
+                var dateStr = dataProp.GetString();
+                if (DateTime.TryParse(dateStr, null, System.Globalization.DateTimeStyles.RoundtripKind, out var parsed))
+                    data = DateTime.SpecifyKind(parsed, DateTimeKind.Utc);
+            }
+
+            var luogo = root.TryGetProperty("luogo", out var luogoProp) && luogoProp.ValueKind == JsonValueKind.String
+                ? luogoProp.GetString() : null;
+            var titolo = root.TryGetProperty("titolo", out var titoloProp) && titoloProp.ValueKind == JsonValueKind.String
+                ? titoloProp.GetString() : null;
+
+            var items = new List<ParsedAgendaItemDto>();
+            if (root.TryGetProperty("agendaItems", out var itemsProp) && itemsProp.ValueKind == JsonValueKind.Array)
+            {
+                foreach (var el in itemsProp.EnumerateArray())
+                {
+                    var ordine = el.TryGetProperty("ordine", out var op) && op.ValueKind == JsonValueKind.Number
+                        ? op.GetInt32() : 0;
+                    var descrizione = el.TryGetProperty("descrizione", out var dp) && dp.ValueKind == JsonValueKind.String
+                        ? (dp.GetString() ?? "") : "";
+                    items.Add(new ParsedAgendaItemDto(ordine, descrizione));
+                }
+            }
+
+            return Ok(new SittingParsedDto(data, luogo, titolo, items));
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Errore durante import-pdf");
+            return StatusCode(502, new { error = "Errore durante il parsing della convocazione: " + ex.Message });
+        }
+        finally
+        {
+            // Cancella sempre il file temporaneo
+            if (System.IO.File.Exists(tempFile))
+            {
+                try { System.IO.File.Delete(tempFile); }
+                catch (Exception ex) { _logger.LogWarning(ex, "Impossibile cancellare file temporaneo {Path}", tempFile); }
+            }
+        }
+    }
+
     private static SittingDetailDto ToDetail(Sitting s) => new(
         s.Id, s.Data, s.Luogo, s.Titolo,
         s.AgendaItems.OrderBy(i => i.Ordine).Select(ToItemDto).ToList()
@@ -493,4 +652,12 @@ public class SittingsController : ControllerBase
         i.Id, i.Ordine, i.Descrizione, i.Decisione, i.Motivazione, i.ActId, i.DocumentId, i.Status,
         i.Assignments.Select(a => new AssignedUserDto(a.UserId, a.User?.Email ?? "", a.User?.FullName ?? "")).ToList()
     );
+
+    private static string ExtractJson(string text)
+    {
+        var start = text.IndexOf('{');
+        var end = text.LastIndexOf('}');
+        if (start >= 0 && end > start) return text.Substring(start, end - start + 1);
+        return text;
+    }
 }

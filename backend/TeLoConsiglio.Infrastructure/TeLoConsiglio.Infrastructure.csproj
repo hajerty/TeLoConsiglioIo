@@ -11,6 +11,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- NoWarn NU1902: GHSA-9j88-vvj5-vhgr e' una vuln moderata senza patch disponibile per MailKit;
+         accettata consapevolmente — l'uso e' server-side SMTP outbound, nessuna superficie di attacco client. -->
+    <PackageReference Include="MailKit" Version="4.10.0" NoWarn="NU1902" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.10" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="8.0.10" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.10" />

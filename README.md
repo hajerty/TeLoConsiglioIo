@@ -85,6 +85,10 @@ Vedi `.env.example`. Le principali:
 | `MICROSOFT_CLIENT_ID/SECRET` | OAuth Microsoft (facoltativo) |
 | `Frontend__Url` | URL frontend per CORS |
 | `VITE_API_URL` | URL backend usato dal frontend |
+| `SMTP_HOST` | Host SMTP per invio email inviti (opzionale; se mancante → fallback console) |
+| `SMTP_PORT` | Porta SMTP (default `587`) |
+| `SMTP_USER` / `SMTP_PASS` | Credenziali SMTP |
+| `SMTP_FROM` | Indirizzo mittente email (default `no-reply@teloconsiglio.io`) |
 
 ## API principali
 
@@ -143,6 +147,7 @@ Tutte le rotte (eccetto `/api/auth/*` e `/health`) richiedono header `Authorizat
 - `POST /api/sittings`
 - `DELETE /api/sittings/{id}`
 - `GET  /api/sittings/{id}/report.pdf` - scarica report PDF della seduta (solo voci con stato `ApprovataPerSeduta`; header `Content-Disposition: attachment`)
+- `POST /api/sittings/import-pdf` — solo Capogruppo/Vice/Admin; multipart `file` (.pdf/.docx/.txt, max 20MB); parsa la convocazione via AI e restituisce DTO `{ data, luogo, titolo, agendaItems[] }` — **non crea la Sitting** (il frontend mostrerà il form pre-fillato)
 - `POST /api/sittings/{id}/agenda`
 - `PUT  /api/sittings/agenda/{itemId}`
 - `DELETE /api/sittings/agenda/{itemId}`
@@ -153,7 +158,7 @@ Tutte le rotte (eccetto `/api/auth/*` e `/health`) richiedono header `Authorizat
 
 ### Inviti
 
-- `POST /api/invitations` - crea invito (solo Capogruppo/Vice/Admin; body: `{nome, cognome, email, gruppo?, comune?}`; risposta: `{token, url}`)
+- `POST /api/invitations` - crea invito (solo Capogruppo/Vice/Admin; body: `{nome, cognome, email, gruppo?, comune?}`; risposta: `{token, url, emailSent}` — `emailSent` indica se l'email e' stata inviata con successo)
 - `GET  /api/invitations` - lista inviti emessi (solo Capogruppo/Vice/Admin; paginata con `?page=&pageSize=`; header `X-Total-Count`)
 - `GET  /api/invitations/{token}` - dati pubblici invito per pre-fillare form registrazione (no auth; 404 se scaduto/revocato)
 - `DELETE /api/invitations/{id}` - revoca invito (solo emittente o Admin)
@@ -161,6 +166,39 @@ Tutte le rotte (eccetto `/api/auth/*` e `/health`) richiedono header `Authorizat
 ### Utenti
 
 - `GET /api/users`
+
+## Email
+
+### Configurazione SMTP
+
+Imposta le variabili d'ambiente (vedi `.env.example`):
+
+| Variabile | Default | Descrizione |
+|---|---|---|
+| `SMTP_HOST` | _(vuoto)_ | Host SMTP; se non impostato si usa il fallback console |
+| `SMTP_PORT` | `587` | Porta SMTP |
+| `SMTP_USER` | _(vuoto)_ | Username SMTP (opzionale se il server non richiede auth) |
+| `SMTP_PASS` | _(vuoto)_ | Password SMTP |
+| `SMTP_FROM` | `no-reply@teloconsiglio.io` | Indirizzo mittente |
+| `SMTP_USE_SSL` | `true` se porta 465, altrimenti STARTTLS | `true` = SSL implicito (port 465), `false` = STARTTLS |
+
+### Fallback console
+
+Se `SMTP_HOST` non e' impostato, all'avvio appare il log warning:
+
+```
+Email service: console fallback. Configura SMTP_HOST per email reali.
+```
+
+Tutte le email vengono loggate su stdout (To, Subject, body troncato a 500 char + URL completo) invece di essere inviate.
+
+### Email inviate
+
+- **Creazione invito** (`POST /api/invitations`): all'utente invitato viene inviata un'email con link di registrazione. La risposta include `emailSent: true/false` per UX (se l'invio fallisce, l'invito e' comunque creato).
+
+### TODO
+
+- Notifiche email su altre azioni (nuova seduta, modifica profilo, ecc.) — da implementare in future release.
 
 ### Usage / Budget AI
 

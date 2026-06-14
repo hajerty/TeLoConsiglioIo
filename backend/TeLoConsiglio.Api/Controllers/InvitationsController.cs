@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using TeLoConsiglio.Api.Dtos;
 using TeLoConsiglio.Domain.Entities;
 using TeLoConsiglio.Infrastructure.Data;
+using TeLoConsiglio.Infrastructure.Services;
 
 namespace TeLoConsiglio.Api.Controllers;
 
@@ -38,7 +39,7 @@ public record InvitationPublicDto(
     DateTime ExpiresAt,
     bool Consumed);
 
-public record CreateInvitationResponseDto(string Token, string Url);
+public record CreateInvitationResponseDto(string Token, string Url, bool EmailSent);
 
 // ---------- Controller ----------
 
@@ -49,12 +50,21 @@ public class InvitationsController : ControllerBase
     private readonly AppDbContext _db;
     private readonly UserManager<ApplicationUser> _users;
     private readonly IConfiguration _config;
+    private readonly IEmailSender _email;
+    private readonly ILogger<InvitationsController> _logger;
 
-    public InvitationsController(AppDbContext db, UserManager<ApplicationUser> users, IConfiguration config)
+    public InvitationsController(
+        AppDbContext db,
+        UserManager<ApplicationUser> users,
+        IConfiguration config,
+        IEmailSender email,
+        ILogger<InvitationsController> logger)
     {
         _db = db;
         _users = users;
         _config = config;
+        _email = email;
+        _logger = logger;
     }
 
     private string? GetUserId() => _users.GetUserId(User);
@@ -94,11 +104,35 @@ public class InvitationsController : ControllerBase
         _db.Invitations.Add(invitation);
         await _db.SaveChangesAsync();
 
-        // TODO: inviare email di invito all'indirizzo dto.Email
         var frontendUrl = _config["FRONTEND_URL"] ?? _config["Frontend__Url"] ?? "http://localhost:5173";
         var url = $"{frontendUrl}/register?invite={token}";
 
-        return Ok(new CreateInvitationResponseDto(token, url));
+        // Invia email di invito
+        var inviterFullName = currentUser.FullName ?? currentUser.Email ?? "un consigliere";
+        var emailSent = false;
+        try
+        {
+            var subject = "Invito a TeLoConsiglio.io";
+            var html = $"""
+                <p>Ciao {dto.Nome} {dto.Cognome},</p>
+                <p>L'utente <strong>{inviterFullName}</strong> ti ha invitato a unirti come consigliere
+                del gruppo <strong>{gruppo}</strong> per il Comune di <strong>{comune}</strong>
+                sulla piattaforma <strong>TeLoConsiglio.io</strong>.</p>
+                <p>Clicca qui per registrarti:<br>
+                <a href="{url}">{url}</a></p>
+                <p>Il link e' valido per 14 giorni.</p>
+                <hr>
+                <p style="color:#888;font-size:12px;">TeLoConsiglio.io — Assistente per consiglieri comunali italiani</p>
+                """;
+            await _email.SendAsync(dto.Email, subject, html);
+            emailSent = true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Errore invio email invito a {Email}", dto.Email);
+        }
+
+        return Ok(new CreateInvitationResponseDto(token, url, emailSent));
     }
 
     /// <summary>

@@ -13,3 +13,7 @@ public record AgendaItemDto(Guid Id, int Ordine, string Descrizione, AgendaDecis
 public record AssignedUserDto(string UserId, string Email, string FullName);
 
 public record AgendaItemStatusUpdateDto([Required] AgendaItemStatus Status);
+
+// ----- Import PDF convocazione -----
+public record ParsedAgendaItemDto(int Ordine, string Descrizione);
+public record SittingParsedDto(DateTime? Data, string? Luogo, string? Titolo, List<ParsedAgendaItemDto> AgendaItems);

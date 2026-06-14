@@ -36,3 +36,5 @@ services:
       # - GEMINI_API_KEY               (opzionale, abilita le funzioni AI - free tier: https://aistudio.google.com/apikey)
       # - GOOGLE_CLIENT_ID/SECRET      (opzionale)
       # - MICROSOFT_CLIENT_ID/SECRET   (opzionale)
+      # - SMTP_HOST/SMTP_USER/SMTP_PASS — opzionali, abilitano l'invio email degli inviti
+      #   (se mancanti gli inviti sono solo loggati su stdout; SMTP_PORT default 587, SMTP_FROM default no-reply@teloconsiglio.io)

@@ -225,6 +225,39 @@ L'utente puo' disabilitare le notifiche email tramite `PUT /api/profile/notifica
 
 - `GET /api/admin/encryption-status` - (solo Admin) stato cifratura documenti: `{ enabled, algorithm, filesEncrypted, filesPlain }`
 
+### Admin / Audit
+
+Tutti gli endpoint richiedono ruolo Admin.
+
+- `GET /api/admin/audit-log` — lista eventi audit; query params: `userId`, `action`, `q` (full-text su action+resource), `from`, `to` (DateTime ISO), `page` (default 1), `pageSize` (default 50, max 200); risposta `AuditLogDto[]` ordinata desc per `createdAt`; header `X-Total-Count`
+- `GET /api/admin/audit-log/export.csv` — stessi filtri (no paginazione, max 50000 righe); CSV RFC 4180; `Content-Type: text/csv`; `Content-Disposition: attachment; filename="audit-log-yyyymmdd.csv"`
+
+## Audit log
+
+Ogni azione rilevante (login, registrazione, creazione/modifica/cancellazione di atti, sedute, documenti, inviti, upload, export AI, operazioni admin) viene registrata in modo best-effort nella tabella `AuditLogs`.
+
+### Campi registrati
+
+| Campo | Descrizione |
+|---|---|
+| `id` | UUID primario |
+| `userId` | ID utente ASP.NET Identity (null per azioni anonime fallite) |
+| `userEmail` | Snapshot email al momento dell'evento |
+| `action` | Stringa gerarchica es. `auth.login.success`, `act.create` |
+| `resource` | Risorsa coinvolta es. `Act:<guid>`, `User:<id>` |
+| `detailsJson` | Payload extra in JSON (opzionale) |
+| `ipAddress` | IP remoto |
+| `userAgent` | User-Agent HTTP troncato a 500 caratteri |
+| `createdAt` | Timestamp UTC |
+
+### Accesso ai log
+
+Solo il ruolo Admin puo' leggere i log tramite `GET /api/admin/audit-log` e `GET /api/admin/audit-log/export.csv` (vedi sezione "Admin / Audit" in "API principali").
+
+### Garanzie
+
+L'audit e' **best-effort**: un errore di scrittura non blocca mai l'azione utente principale. Il servizio `AuditLogger` wrappa internamente ogni operazione in try/catch con log di errore; i controller fanno lo stesso.
+
 ## Costi e budget AI
 
 Il provider AI è **Google Gemini**. Sul free tier le chiamate sono **gratis** (zero USD):

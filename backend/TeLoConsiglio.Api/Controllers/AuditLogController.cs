@@ -77,6 +77,7 @@ public class AuditLogController : ControllerBase
 
         var items = await query
             .OrderByDescending(a => a.CreatedAt)
+            .ThenByDescending(a => a.Id)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
             .ToListAsync();
@@ -121,6 +122,7 @@ public class AuditLogController : ControllerBase
 
         var items = await query
             .OrderByDescending(a => a.CreatedAt)
+            .ThenByDescending(a => a.Id)
             .Take(50_000)
             .ToListAsync();
 

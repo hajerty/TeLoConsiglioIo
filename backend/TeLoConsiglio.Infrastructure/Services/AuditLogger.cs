@@ -26,24 +26,26 @@ public class AuditLogger : IAuditLogger
         _logger = logger;
     }
 
-    public async Task LogAsync(string action, string? resource = null, object? details = null, CancellationToken ct = default)
+    public Task LogAsync(string action, string? resource = null, object? details = null, CancellationToken ct = default)
+        => WriteAsync(userIdOverride: null, action, resource, details, ct);
+
+    public Task LogAsAsync(string userId, string action, string? resource = null, object? details = null, CancellationToken ct = default)
+        => WriteAsync(userIdOverride: userId, action, resource, details, ct);
+
+    private async Task WriteAsync(string? userIdOverride, string action, string? resource, object? details, CancellationToken ct)
     {
         try
         {
             var ctx = _http.HttpContext;
-            string? userId = null;
+            string? userId = userIdOverride;
             string? userEmail = null;
             string? ipAddress = null;
             string? userAgent = null;
 
             if (ctx != null)
             {
-                userId = _users.GetUserId(ctx.User);
-                if (userId != null)
-                {
-                    var user = await _users.FindByIdAsync(userId);
-                    userEmail = user?.Email;
-                }
+                if (userId == null)
+                    userId = _users.GetUserId(ctx.User);
 
                 var ip = ctx.Connection.RemoteIpAddress;
                 if (ip != null)
@@ -52,6 +54,12 @@ public class AuditLogger : IAuditLogger
                 userAgent = ctx.Request.Headers["User-Agent"].ToString();
                 if (!string.IsNullOrEmpty(userAgent) && userAgent.Length > 500)
                     userAgent = userAgent.Substring(0, 500);
+            }
+
+            if (userId != null)
+            {
+                var user = await _users.FindByIdAsync(userId);
+                userEmail = user?.Email;
             }
 
             string? detailsJson = null;

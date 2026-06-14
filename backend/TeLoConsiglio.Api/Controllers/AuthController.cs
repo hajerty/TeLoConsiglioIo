@@ -112,11 +112,11 @@ public class AuthController : ControllerBase
         var ok = await _users.CheckPasswordAsync(user, dto.Password);
         if (!ok)
         {
-            try { await _audit.LogAsync("auth.login.failure", $"Email:{dto.Email}", new { reason = "wrong_password" }); } catch { }
+            try { await _audit.LogAsAsync(user.Id, "auth.login.failure", $"Email:{dto.Email}", new { reason = "wrong_password" }); } catch { }
             return Unauthorized(new { error = "Credenziali non valide" });
         }
         var loginResp = await BuildAuthResponse(user);
-        try { await _audit.LogAsync("auth.login.success", $"User:{user.Id}"); } catch { }
+        try { await _audit.LogAsAsync(user.Id, "auth.login.success", $"User:{user.Id}"); } catch { }
         return Ok(loginResp);
     }
 

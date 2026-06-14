@@ -11,7 +11,8 @@ public record ActCreateDto(
     Guid? ParentActId,
     string? BodyMd,
     List<string>? ReferenceUrls,
-    string? ReferenceNotesMd
+    string? ReferenceNotesMd,
+    ActStatus? Status
 );
 
 public record ActUpdateDto(

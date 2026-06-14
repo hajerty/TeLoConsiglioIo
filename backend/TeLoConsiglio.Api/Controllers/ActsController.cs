@@ -85,6 +85,7 @@ public class ActsController : ControllerBase
             ContextNotes = dto.ContextNotes,
             ParentActId = dto.ParentActId,
             BodyMd = dto.BodyMd ?? "",
+            Status = dto.Status ?? ActStatus.Bozza,
             ReferenceUrlsJson = JsonSerializer.Serialize(dto.ReferenceUrls ?? new List<string>()),
             ReferenceNotesMd = dto.ReferenceNotesMd
         };

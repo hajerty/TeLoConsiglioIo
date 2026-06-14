@@ -6,6 +6,8 @@ import type {
   ActType,
   ActStatus,
   AgendaItemStatus,
+  AuditLogItem,
+  AuditLogQueryParams,
   AuthResponse,
   DashboardPayload,
   DocumentDetail,
@@ -236,4 +238,29 @@ export const invitationsApi = {
 // --- USERS ---
 export const usersApi = {
   list: () => api.get<UserPick[]>('/api/users').then((r) => r.data),
+};
+
+// --- ADMIN: AUDIT LOG ---
+export const adminApi = {
+  auditLog: {
+    list: (params?: AuditLogQueryParams) =>
+      api.get<AuditLogItem[]>('/api/admin/audit-log', { params }).then((r) => ({
+        items: r.data,
+        totalCount: parseInt(r.headers['x-total-count'] ?? '0', 10),
+      })),
+    exportCsv: (params?: AuditLogQueryParams) =>
+      api
+        .get('/api/admin/audit-log/export.csv', { params, responseType: 'blob' })
+        .then((r) => {
+          const blob = r.data as Blob;
+          const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = `audit-log-${date}.csv`;
+          a.click();
+          URL.revokeObjectURL(url);
+          return blob;
+        }),
+  },
 };

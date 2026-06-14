@@ -285,3 +285,26 @@ export interface InvitationCreated {
 export interface NotificationPreferences {
   emailNotificationsEnabled: boolean;
 }
+
+// --- AUDIT LOG ---
+export interface AuditLogItem {
+  id: string;
+  userId: string | null;
+  userEmail: string | null;
+  action: string;
+  resource: string | null;
+  detailsJson: string | null;
+  ipAddress: string | null;
+  userAgent: string | null;
+  createdAt: string;
+}
+
+export interface AuditLogQueryParams {
+  userId?: string;
+  action?: string;
+  q?: string;
+  from?: string;
+  to?: string;
+  page?: number;
+  pageSize?: number;
+}

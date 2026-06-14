@@ -510,14 +510,14 @@ public class SittingsController : ControllerBase
         var uid = GetUserId();
         if (uid == null) return Unauthorized();
 
-        if (!_ai.IsConfigured)
-            return StatusCode(503, new { error = "GEMINI_API_KEY non configurata. Feature AI non disponibile." });
-
         if (file == null || file.Length == 0)
             return BadRequest(new { error = "File mancante o vuoto." });
 
         var (ok, error, ext) = UploadValidator.Validate(file);
         if (!ok) return BadRequest(new { error });
+
+        if (!_ai.IsConfigured)
+            return StatusCode(503, new { error = "GEMINI_API_KEY non configurata. Feature AI non disponibile." });
 
         // Salva temporaneamente in uploads/temp-imports/{userId}/{guid}.{ext}
         var tempDir = Path.Combine(_env.ContentRootPath, "uploads", "temp-imports", uid);

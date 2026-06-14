@@ -280,3 +280,8 @@ export interface InvitationCreated {
   url: string;
   emailSent: boolean;
 }
+
+// --- NOTIFICATION PREFERENCES ---
+export interface NotificationPreferences {
+  emailNotificationsEnabled: boolean;
+}

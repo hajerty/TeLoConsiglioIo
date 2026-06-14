@@ -16,6 +16,7 @@ import type {
   Invitation,
   InvitationCreated,
   InvitationPublic,
+  NotificationPreferences,
   PartyManifest,
   PartySummary,
   PoliticalProfile,
@@ -78,6 +79,10 @@ export const profileApi = {
       .then((r) => r.data);
   },
   deleteProgram: (id: string) => api.delete(`/api/profile/programs/${id}`).then((r) => r.data),
+  getNotifications: () =>
+    api.get<NotificationPreferences>('/api/profile/notifications').then((r) => r.data),
+  updateNotifications: (prefs: NotificationPreferences) =>
+    api.put<NotificationPreferences>('/api/profile/notifications', prefs).then((r) => r.data),
 };
 
 // --- PARTY MANIFESTS ---

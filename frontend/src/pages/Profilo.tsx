@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Compass, Heart, FileBadge, RotateCcw, Upload, Trash2 } from 'lucide-react';
+import { Bell, Compass, Heart, FileBadge, RotateCcw, Upload, Trash2 } from 'lucide-react';
 import { profileApi } from '../api/endpoints';
 import { Modal } from '../components/Modal';
 
@@ -69,6 +69,7 @@ export default function Profilo() {
   const qc = useQueryClient();
   const profileQ = useQuery({ queryKey: ['profile'], queryFn: profileApi.getPolitical });
   const programsQ = useQuery({ queryKey: ['programs'], queryFn: profileApi.listPrograms });
+  const notifQ = useQuery({ queryKey: ['notif-prefs'], queryFn: profileApi.getNotifications });
 
   const [linea, setLinea] = useState('');
   const [argomentiForti, setArgomentiForti] = useState<string[]>([]);
@@ -111,6 +112,14 @@ export default function Profilo() {
     mutationFn: (id: string) => profileApi.deleteProgram(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['programs'] }),
   });
+
+  const notifM = useMutation({
+    mutationFn: (enabled: boolean) =>
+      profileApi.updateNotifications({ emailNotificationsEnabled: enabled }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['notif-prefs'] }),
+  });
+
+  const emailEnabled = notifQ.data?.emailNotificationsEnabled ?? true;
 
   const source = profileQ.data?.lineaPoliticaSource;
   const sourceBadge =
@@ -270,6 +279,62 @@ export default function Profilo() {
             <div className="text-sm text-slate-500">Nessun programma caricato.</div>
           )}
         </ul>
+      </div>
+
+      {/* Notifiche email */}
+      <div className="card">
+        <div className="flex items-center gap-3 mb-4 pb-3 border-b border-slate-100">
+          <div className="w-10 h-10 bg-brand-50 rounded-lg flex items-center justify-center flex-shrink-0">
+            <Bell className="w-5 h-5 text-brand-600" />
+          </div>
+          <div>
+            <h2 className="text-base font-bold text-slate-900">Notifiche email</h2>
+            <p className="text-sm text-slate-500">
+              Ricevi un'email quando sei assegnato a un punto ODG, quando cambia una decisione,
+              quando viene caricato un documento sui tuoi punti, o quando un consigliere del tuo
+              gruppo deposita un atto.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={emailEnabled}
+            disabled={notifQ.isLoading || notifM.isPending}
+            onClick={() => notifM.mutate(!emailEnabled)}
+            className={[
+              'relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent',
+              'transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2',
+              'disabled:opacity-50 disabled:cursor-not-allowed',
+              emailEnabled ? 'bg-brand-600' : 'bg-slate-300',
+            ].join(' ')}
+          >
+            <span
+              aria-hidden="true"
+              className={[
+                'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0',
+                'transition duration-200 ease-in-out',
+                emailEnabled ? 'translate-x-5' : 'translate-x-0',
+              ].join(' ')}
+            />
+          </button>
+
+          <div>
+            <span className="text-sm font-medium text-slate-800">
+              {emailEnabled ? 'Email notifiche attive' : 'Email notifiche disattivate'}
+            </span>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Anche se disabiliti, riceverai comunque l'invito iniziale e le email amministrative
+              essenziali.
+            </p>
+          </div>
+
+          {notifM.isSuccess && (
+            <span className="ml-auto text-sm text-green-600">Salvato.</span>
+          )}
+        </div>
       </div>
 
       {/* Modal conferma reset linea politica */}

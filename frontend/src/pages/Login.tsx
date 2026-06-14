@@ -4,11 +4,14 @@ import { authApi } from '../api/endpoints';
 import type { ProvidersDto } from '../api/types';
 import { useAuthStore } from '../auth/store';
 
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [oauthRedirecting, setOauthRedirecting] = useState<'google' | 'microsoft' | null>(null);
   const [providers, setProviders] = useState<ProvidersDto | null>(null);
   const login = useAuthStore((s) => s.login);
   const navigate = useNavigate();
@@ -70,20 +73,50 @@ export default function Login() {
             <div className="text-xs text-center text-slate-500 mb-2">oppure</div>
             <div className="space-y-2">
               {providers.google && (
-                <a
-                  className="btn-secondary w-full min-h-[48px] sm:min-h-[44px] flex items-center justify-center"
-                  href={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/auth/external/google`}
+                <button
+                  type="button"
+                  className="btn-secondary w-full min-h-[48px] sm:min-h-[44px] flex items-center justify-center gap-2"
+                  disabled={oauthRedirecting !== null}
+                  onClick={() => {
+                    setOauthRedirecting('google');
+                    window.location.href = `${API_BASE}/api/auth/external/google`;
+                  }}
                 >
-                  Accedi con Google
-                </a>
+                  {oauthRedirecting === 'google' ? (
+                    <>
+                      <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                      </svg>
+                      Reindirizzamento...
+                    </>
+                  ) : (
+                    'Accedi con Google'
+                  )}
+                </button>
               )}
               {providers.microsoft && (
-                <a
-                  className="btn-secondary w-full min-h-[48px] sm:min-h-[44px] flex items-center justify-center"
-                  href={`${import.meta.env.VITE_API_URL || 'http://localhost:5000'}/api/auth/external/microsoft`}
+                <button
+                  type="button"
+                  className="btn-secondary w-full min-h-[48px] sm:min-h-[44px] flex items-center justify-center gap-2"
+                  disabled={oauthRedirecting !== null}
+                  onClick={() => {
+                    setOauthRedirecting('microsoft');
+                    window.location.href = `${API_BASE}/api/auth/external/microsoft`;
+                  }}
                 >
-                  Accedi con Microsoft
-                </a>
+                  {oauthRedirecting === 'microsoft' ? (
+                    <>
+                      <svg className="animate-spin w-4 h-4" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                      </svg>
+                      Reindirizzamento...
+                    </>
+                  ) : (
+                    'Accedi con Microsoft'
+                  )}
+                </button>
               )}
             </div>
           </div>

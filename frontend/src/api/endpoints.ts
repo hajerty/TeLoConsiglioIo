@@ -51,6 +51,8 @@ export const authApi = {
     invitationToken?: string;
   }) => api.post<AuthResponse>('/api/auth/register', dto).then((r) => r.data),
   me: () => api.get<User>('/api/auth/me').then((r) => r.data),
+  completeProfile: (dto: { comune: string; partito: string; gruppo?: string }) =>
+    api.put<User>('/api/auth/me/complete-profile', dto).then((r) => r.data),
   refresh: (refreshToken: string) =>
     api.post<AuthResponse>('/api/auth/refresh', { refreshToken }).then((r) => r.data),
   logout: (refreshToken?: string | null) =>

@@ -4,6 +4,8 @@ import { ProtectedRoute } from './auth/ProtectedRoute';
 import { RoleProtectedRoute } from './auth/RoleProtectedRoute';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import OAuthCallback from './pages/OAuthCallback';
+import CompletaProfilo from './pages/CompletaProfilo';
 import Dashboard from './pages/Dashboard';
 import Profilo from './pages/Profilo';
 import Documenti from './pages/Documenti';
@@ -17,9 +19,11 @@ import GestioneConsiglieri from './pages/GestioneConsiglieri';
 export const router = createBrowserRouter([
   { path: '/login', element: <Login /> },
   { path: '/register', element: <Register /> },
+  { path: '/oauth-callback', element: <OAuthCallback /> },
   {
     element: <ProtectedRoute />,
     children: [
+      { path: '/completa-profilo', element: <CompletaProfilo /> },
       {
         element: <Layout />,
         children: [

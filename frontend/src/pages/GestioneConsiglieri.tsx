@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { invitationsApi } from '../api/endpoints';
-import type { Invitation } from '../api/types';
+import type { Invitation, InvitationCreated } from '../api/types';
 
 type FilterStatus = 'Tutti' | 'Pending' | 'Consumed' | 'Expired' | 'Revoked';
 
@@ -23,7 +23,7 @@ export default function GestioneConsiglieri() {
   const qc = useQueryClient();
   const [form, setForm] = useState({ nome: '', cognome: '', email: '', gruppo: '', comune: '' });
   const [formError, setFormError] = useState<string | null>(null);
-  const [generatedLink, setGeneratedLink] = useState<string | null>(null);
+  const [lastCreated, setLastCreated] = useState<InvitationCreated | null>(null);
   const [copied, setCopied] = useState(false);
   const [filter, setFilter] = useState<FilterStatus>('Tutti');
   const linkRef = useRef<HTMLInputElement>(null);
@@ -43,7 +43,7 @@ export default function GestioneConsiglieri() {
         comune: form.comune || undefined,
       }),
     onSuccess: (data) => {
-      setGeneratedLink(data.url);
+      setLastCreated(data);
       setCopied(false);
       setForm({ nome: '', cognome: '', email: '', gruppo: '', comune: '' });
       setFormError(null);
@@ -142,20 +142,33 @@ export default function GestioneConsiglieri() {
         </form>
 
         {/* Banner link generato */}
-        {generatedLink && (
+        {lastCreated && (
           <div className="mt-4 p-4 bg-green-50 border border-green-200 rounded-lg">
-            <div className="text-sm font-medium text-green-800 mb-2">Invito generato con successo!</div>
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <span className="text-sm font-medium text-green-800">Invito generato con successo!</span>
+              {lastCreated.emailSent ? (
+                <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-green-200 text-green-900 font-medium">
+                  <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd"/></svg>
+                  Email inviata
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 font-medium">
+                  <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd"/></svg>
+                  Email non recapitata — usa il link sotto
+                </span>
+              )}
+            </div>
             <div className="flex gap-2">
               <input
                 ref={linkRef}
                 className="input flex-1 text-xs font-mono"
                 readOnly
-                value={generatedLink}
+                value={lastCreated.url}
                 onClick={() => linkRef.current?.select()}
               />
               <button
                 className="btn-secondary whitespace-nowrap"
-                onClick={() => copyLink(generatedLink)}
+                onClick={() => copyLink(lastCreated.url)}
               >
                 {copied ? 'Copiato!' : 'Copia link'}
               </button>

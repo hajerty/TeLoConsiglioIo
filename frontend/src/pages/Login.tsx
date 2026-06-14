@@ -17,7 +17,7 @@ export default function Login() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    authApi.providers().then(setProviders).catch(() => setProviders({ password: true, google: false, microsoft: false }));
+    authApi.providers().then(setProviders).catch(() => setProviders({ email: true, google: false, microsoft: false }));
   }, []);
 
   const submit = async (e: React.FormEvent) => {

@@ -18,7 +18,7 @@ export interface AuthResponse {
 }
 
 export interface ProvidersDto {
-  password: boolean;
+  email: boolean;
   google: boolean;
   microsoft: boolean;
 }

@@ -9,6 +9,7 @@ using TeLoConsiglio.Api.Auth;
 using TeLoConsiglio.Api.Dtos;
 using TeLoConsiglio.Domain.Entities;
 using TeLoConsiglio.Infrastructure.Data;
+using TeLoConsiglio.Infrastructure.Services;
 
 namespace TeLoConsiglio.Api.Controllers;
 
@@ -22,8 +23,9 @@ public class AuthController : ControllerBase
     private readonly JwtSettings _jwtSettings;
     private readonly AppDbContext _db;
     private readonly IConfiguration _config;
+    private readonly IAuditLogger _audit;
 
-    public AuthController(UserManager<ApplicationUser> users, SignInManager<ApplicationUser> signIn, JwtTokenService jwt, JwtSettings jwtSettings, AppDbContext db, IConfiguration config)
+    public AuthController(UserManager<ApplicationUser> users, SignInManager<ApplicationUser> signIn, JwtTokenService jwt, JwtSettings jwtSettings, AppDbContext db, IConfiguration config, IAuditLogger audit)
     {
         _users = users;
         _signIn = signIn;
@@ -31,6 +33,7 @@ public class AuthController : ControllerBase
         _jwtSettings = jwtSettings;
         _db = db;
         _config = config;
+        _audit = audit;
     }
 
     [HttpGet("providers")]
@@ -92,17 +95,29 @@ public class AuthController : ControllerBase
             await _db.SaveChangesAsync();
         }
 
-        return Ok(await BuildAuthResponse(user));
+        var authResp = await BuildAuthResponse(user);
+        try { await _audit.LogAsync("auth.register", $"User:{user.Id}", new { comune = user.Comune, partito = user.Partito, gruppo = user.Gruppo, viaInvito = invitation != null }); } catch { }
+        return Ok(authResp);
     }
 
     [HttpPost("login")]
     public async Task<ActionResult<AuthResponseDto>> Login([FromBody] LoginDto dto)
     {
         var user = await _users.FindByEmailAsync(dto.Email);
-        if (user == null) return Unauthorized(new { error = "Credenziali non valide" });
+        if (user == null)
+        {
+            try { await _audit.LogAsync("auth.login.failure", $"Email:{dto.Email}", new { reason = "user_not_found" }); } catch { }
+            return Unauthorized(new { error = "Credenziali non valide" });
+        }
         var ok = await _users.CheckPasswordAsync(user, dto.Password);
-        if (!ok) return Unauthorized(new { error = "Credenziali non valide" });
-        return Ok(await BuildAuthResponse(user));
+        if (!ok)
+        {
+            try { await _audit.LogAsync("auth.login.failure", $"Email:{dto.Email}", new { reason = "wrong_password" }); } catch { }
+            return Unauthorized(new { error = "Credenziali non valide" });
+        }
+        var loginResp = await BuildAuthResponse(user);
+        try { await _audit.LogAsync("auth.login.success", $"User:{user.Id}"); } catch { }
+        return Ok(loginResp);
     }
 
     [HttpPost("refresh")]
@@ -127,6 +142,7 @@ public class AuthController : ControllerBase
     [HttpPost("logout")]
     public async Task<IActionResult> Logout([FromBody] RefreshDto? dto)
     {
+        var uid = _users.GetUserId(User);
         if (dto != null && !string.IsNullOrWhiteSpace(dto.RefreshToken))
         {
             var hash = JwtTokenService.HashRefreshToken(dto.RefreshToken);
@@ -137,6 +153,7 @@ public class AuthController : ControllerBase
                 await _db.SaveChangesAsync();
             }
         }
+        try { await _audit.LogAsync("auth.logout", uid != null ? $"User:{uid}" : null); } catch { }
         return NoContent();
     }
 
@@ -174,6 +191,8 @@ public class AuthController : ControllerBase
 
         var res = await _users.UpdateAsync(user);
         if (!res.Succeeded) return BadRequest(new { errors = res.Errors.Select(e => e.Description) });
+
+        try { await _audit.LogAsync("auth.complete-profile", $"User:{user.Id}", new { comune = user.Comune, partito = user.Partito }); } catch { }
 
         var roles = await _users.GetRolesAsync(user);
         return Ok(new UserDto(user.Id, user.Email ?? "", user.FullName, user.Comune, user.Partito, user.Gruppo, roles));
@@ -215,7 +234,10 @@ public class AuthController : ControllerBase
 
         var result = await HttpContext.AuthenticateAsync("ExternalAuthCookie");
         if (!result.Succeeded || result.Principal == null)
+        {
+            try { await _audit.LogAsync("auth.oauth.failure", $"Provider:{provider}"); } catch { }
             return Redirect(errorRedirect);
+        }
 
         var providerKey = result.Principal.FindFirstValue(ClaimTypes.NameIdentifier);
         var email = result.Principal.FindFirstValue(ClaimTypes.Email)
@@ -224,10 +246,16 @@ public class AuthController : ControllerBase
             ?? $"{result.Principal.FindFirstValue(ClaimTypes.GivenName)} {result.Principal.FindFirstValue(ClaimTypes.Surname)}".Trim();
 
         if (string.IsNullOrWhiteSpace(providerKey) || string.IsNullOrWhiteSpace(email))
+        {
+            try { await _audit.LogAsync("auth.oauth.failure", $"Provider:{provider}"); } catch { }
             return Redirect(errorRedirect);
+        }
 
         if (!ProviderSchemeMap.TryGetValue(provider, out var schemeName))
+        {
+            try { await _audit.LogAsync("auth.oauth.failure", $"Provider:{provider}"); } catch { }
             return Redirect(errorRedirect);
+        }
 
         // Clean up the ephemeral OAuth cookie
         await HttpContext.SignOutAsync("ExternalAuthCookie");
@@ -270,6 +298,8 @@ public class AuthController : ControllerBase
 
         var authResp = await BuildAuthResponse(user);
         var needsProfile = string.IsNullOrWhiteSpace(user.Comune) || string.IsNullOrWhiteSpace(user.Partito);
+
+        try { await _audit.LogAsync("auth.oauth.success", $"User:{user.Id}", new { provider = schemeName }); } catch { }
 
         var at = Uri.EscapeDataString(authResp.AccessToken);
         var rt = Uri.EscapeDataString(authResp.RefreshToken);

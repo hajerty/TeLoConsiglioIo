@@ -24,9 +24,11 @@ public class DocumentsController : ControllerBase
     private readonly ILogger<DocumentsController> _logger;
     private readonly IFileEncryptor _fileEncryptor;
 
-    public DocumentsController(AppDbContext db, UserManager<ApplicationUser> users, IDocumentTextExtractor extractor, IAIService ai, IWebHostEnvironment env, ILogger<DocumentsController> logger, IFileEncryptor fileEncryptor)
+    private readonly IAuditLogger _audit;
+
+    public DocumentsController(AppDbContext db, UserManager<ApplicationUser> users, IDocumentTextExtractor extractor, IAIService ai, IWebHostEnvironment env, ILogger<DocumentsController> logger, IFileEncryptor fileEncryptor, IAuditLogger audit)
     {
-        _db = db; _users = users; _extractor = extractor; _ai = ai; _env = env; _logger = logger; _fileEncryptor = fileEncryptor;
+        _db = db; _users = users; _extractor = extractor; _ai = ai; _env = env; _logger = logger; _fileEncryptor = fileEncryptor; _audit = audit;
     }
 
     private string GetUserId() => _users.GetUserId(User)!;
@@ -102,6 +104,7 @@ public class DocumentsController : ControllerBase
         };
         _db.Documents.Add(doc);
         await _db.SaveChangesAsync();
+        try { await _audit.LogAsync("document.upload", $"Document:{doc.Id}", new { fileName = originalSafe, type }); } catch { }
         return Ok(new DocumentDto(doc.Id, doc.OriginalName, doc.Type, doc.CreatedAt, false));
     }
 
@@ -114,6 +117,7 @@ public class DocumentsController : ControllerBase
         try { if (System.IO.File.Exists(d.FilePath)) System.IO.File.Delete(d.FilePath); } catch { }
         _db.Documents.Remove(d);
         await _db.SaveChangesAsync();
+        try { await _audit.LogAsync("document.delete", $"Document:{id}"); } catch { }
         return NoContent();
     }
 
@@ -194,6 +198,7 @@ Restituisci ESCLUSIVAMENTE un oggetto JSON con questa struttura:
             doc.Summary.GeneratedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync();
 
+            try { await _audit.LogAsync("document.summarize", $"Document:{id}"); } catch { }
             return Ok(new DocumentSummaryDto(summary, keyPoints, critic, doc.Summary.GeneratedAt));
         }
         catch (AIQuotaExceededException ex)

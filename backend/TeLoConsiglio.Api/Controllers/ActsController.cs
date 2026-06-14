@@ -29,6 +29,7 @@ public class ActsController : ControllerBase
     private readonly IWebHostEnvironment _env;
     private readonly IFileEncryptor _fileEncryptor;
     private readonly INotificationService _notifications;
+    private readonly IAuditLogger _audit;
 
     public ActsController(
         AppDbContext db,
@@ -38,9 +39,10 @@ public class ActsController : ControllerBase
         IDocumentTextExtractor extractor,
         IWebHostEnvironment env,
         IFileEncryptor fileEncryptor,
-        INotificationService notifications)
+        INotificationService notifications,
+        IAuditLogger audit)
     {
-        _db = db; _users = users; _ai = ai; _logger = logger; _extractor = extractor; _env = env; _fileEncryptor = fileEncryptor; _notifications = notifications;
+        _db = db; _users = users; _ai = ai; _logger = logger; _extractor = extractor; _env = env; _fileEncryptor = fileEncryptor; _notifications = notifications; _audit = audit;
     }
 
     private string GetUserId() => _users.GetUserId(User)!;
@@ -99,6 +101,7 @@ public class ActsController : ControllerBase
             catch (Exception ex) { _logger.LogError(ex, "Errore notifica atto depositato actId={ActId}", a.Id); }
         }
 
+        try { await _audit.LogAsync("act.create", $"Act:{a.Id}", new { tipo = a.Tipo, status = a.Status }); } catch { }
         return Ok(ToDetail(a));
     }
 
@@ -130,6 +133,7 @@ public class ActsController : ControllerBase
             catch (Exception ex) { _logger.LogError(ex, "Errore notifica atto depositato actId={ActId}", a.Id); }
         }
 
+        try { await _audit.LogAsync("act.update", $"Act:{a.Id}", new { status = dto.Status, oldStatus }); } catch { }
         return Ok(ToDetail(a));
     }
 
@@ -141,6 +145,7 @@ public class ActsController : ControllerBase
         if (a == null) return NotFound();
         _db.Acts.Remove(a);
         await _db.SaveChangesAsync();
+        try { await _audit.LogAsync("act.delete", $"Act:{id}"); } catch { }
         return NoContent();
     }
 
@@ -191,6 +196,7 @@ public class ActsController : ControllerBase
         _db.ActAttachments.Add(att);
         await _db.SaveChangesAsync();
 
+        try { await _audit.LogAsync("act.attachment.upload", $"Act:{id}", new { fileName = originalSafe }); } catch { }
         return Ok(new ActAttachmentDto(att.Id, att.OriginalName, att.ContentType, att.SizeBytes, att.CreatedAt));
     }
 
@@ -327,6 +333,7 @@ public class ActsController : ControllerBase
             });
         }).GeneratePdf();
 
+        try { await _audit.LogAsync("act.pdf.export", $"Act:{id}"); } catch { }
         return File(pdfBytes, "application/pdf", fileName);
     }
 
@@ -409,6 +416,7 @@ Produci ora il testo completo dell'atto in markdown.";
         {
             var result = await _ai.CompleteWithUsageAsync(cacheableSystem, volatileSystem, user, maxTokens: 4000);
             await LogUsageAsync(uid, "acts.ai-draft", result);
+            try { await _audit.LogAsync("act.ai-draft", $"Act:{id}"); } catch { }
             return Ok(new GenerateDraftResponse(result.Text));
         }
         catch (AIQuotaExceededException ex)
@@ -488,6 +496,7 @@ Restituisci ESCLUSIVAMENTE JSON nella forma:
             }
             await _db.SaveChangesAsync();
 
+            try { await _audit.LogAsync("act.legal-refs.suggest", $"Act:{id}"); } catch { }
             return Ok(new SuggestLegalRefsResponse(refs));
         }
         catch (AIQuotaExceededException ex)
@@ -534,6 +543,7 @@ Restituisci ESCLUSIVAMENTE JSON nella forma:
         }
         a.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
+        try { await _audit.LogAsync("act.legal-refs.insert", $"Act:{id}", new { count = refs.Count }); } catch { }
         return Ok(ToDetail(a));
     }
 

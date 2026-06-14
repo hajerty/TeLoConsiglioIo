@@ -52,19 +52,22 @@ public class InvitationsController : ControllerBase
     private readonly IConfiguration _config;
     private readonly IEmailSender _email;
     private readonly ILogger<InvitationsController> _logger;
+    private readonly IAuditLogger _audit;
 
     public InvitationsController(
         AppDbContext db,
         UserManager<ApplicationUser> users,
         IConfiguration config,
         IEmailSender email,
-        ILogger<InvitationsController> logger)
+        ILogger<InvitationsController> logger,
+        IAuditLogger audit)
     {
         _db = db;
         _users = users;
         _config = config;
         _email = email;
         _logger = logger;
+        _audit = audit;
     }
 
     private string? GetUserId() => _users.GetUserId(User);
@@ -132,6 +135,7 @@ public class InvitationsController : ControllerBase
             _logger.LogError(ex, "Errore invio email invito a {Email}", dto.Email);
         }
 
+        try { await _audit.LogAsync("invitation.create", $"Invitation:{invitation.Id}", new { email = dto.Email, gruppo, comune, emailSent }); } catch { }
         return Ok(new CreateInvitationResponseDto(token, url, emailSent));
     }
 
@@ -225,6 +229,7 @@ public class InvitationsController : ControllerBase
 
         invitation.RevokedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
+        try { await _audit.LogAsync("invitation.revoke", $"Invitation:{invitation.Id}"); } catch { }
         return NoContent();
     }
 }

@@ -23,6 +23,7 @@ public class ProfileController : ControllerBase
     private readonly IWebHostEnvironment _env;
     private readonly PartyManifestService _partyManifests;
     private readonly IFileEncryptor _fileEncryptor;
+    private readonly IAuditLogger _audit;
 
     public ProfileController(
         AppDbContext db,
@@ -30,9 +31,10 @@ public class ProfileController : ControllerBase
         IDocumentTextExtractor extractor,
         IWebHostEnvironment env,
         PartyManifestService partyManifests,
-        IFileEncryptor fileEncryptor)
+        IFileEncryptor fileEncryptor,
+        IAuditLogger audit)
     {
-        _db = db; _users = users; _extractor = extractor; _env = env; _partyManifests = partyManifests; _fileEncryptor = fileEncryptor;
+        _db = db; _users = users; _extractor = extractor; _env = env; _partyManifests = partyManifests; _fileEncryptor = fileEncryptor; _audit = audit;
     }
 
     private string GetUserId() => _users.GetUserId(User) ?? throw new InvalidOperationException();
@@ -107,6 +109,7 @@ public class ProfileController : ControllerBase
 
         var argomenti = JsonSerializer.Deserialize<List<string>>(prof.ArgomentiFortiJson) ?? new List<string>();
         var temi = JsonSerializer.Deserialize<List<string>>(prof.TemiInteresseJson) ?? new List<string>();
+        try { await _audit.LogAsync("profile.political.update", $"User:{uid}"); } catch { }
         return Ok(new PoliticalProfileDto(prof.LineaPoliticaMd, argomenti, temi, prof.LineaPoliticaSource));
     }
 
@@ -135,6 +138,7 @@ public class ProfileController : ControllerBase
 
         var argomenti = JsonSerializer.Deserialize<List<string>>(prof.ArgomentiFortiJson) ?? new List<string>();
         var temi = JsonSerializer.Deserialize<List<string>>(prof.TemiInteresseJson) ?? new List<string>();
+        try { await _audit.LogAsync("profile.political.reset", $"User:{uid}"); } catch { }
         return Ok(new PoliticalProfileDto(prof.LineaPoliticaMd, argomenti, temi, prof.LineaPoliticaSource));
     }
 
@@ -157,6 +161,7 @@ public class ProfileController : ControllerBase
         if (user == null) return Unauthorized();
         user.EmailNotificationsEnabled = dto.EmailNotificationsEnabled;
         await _users.UpdateAsync(user);
+        try { await _audit.LogAsync("profile.notifications.update", $"User:{uid}", new { enabled = dto.EmailNotificationsEnabled }); } catch { }
         return Ok(new NotificationPreferencesDto(user.EmailNotificationsEnabled));
     }
 
@@ -208,6 +213,7 @@ public class ProfileController : ControllerBase
         };
         _db.ElectoralPrograms.Add(prog);
         await _db.SaveChangesAsync();
+        try { await _audit.LogAsync("profile.program.upload", $"User:{uid}", new { fileName = originalSafe }); } catch { }
         return Ok(new ElectoralProgramDto(prog.Id, prog.OriginalName, prog.UploadedAt));
     }
 
@@ -220,6 +226,7 @@ public class ProfileController : ControllerBase
         try { if (System.IO.File.Exists(prog.FilePath)) System.IO.File.Delete(prog.FilePath); } catch { }
         _db.ElectoralPrograms.Remove(prog);
         await _db.SaveChangesAsync();
+        try { await _audit.LogAsync("profile.program.delete", $"User:{uid}"); } catch { }
         return NoContent();
     }
 

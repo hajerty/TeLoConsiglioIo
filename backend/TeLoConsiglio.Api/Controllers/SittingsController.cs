@@ -29,6 +29,7 @@ public class SittingsController : ControllerBase
     private readonly IAIService _ai;
     private readonly ILogger<SittingsController> _logger;
     private readonly INotificationService _notifications;
+    private readonly IAuditLogger _audit;
 
     public SittingsController(
         AppDbContext db,
@@ -38,7 +39,8 @@ public class SittingsController : ControllerBase
         IFileEncryptor fileEncryptor,
         IAIService ai,
         ILogger<SittingsController> logger,
-        INotificationService notifications)
+        INotificationService notifications,
+        IAuditLogger audit)
     {
         _db = db;
         _users = users;
@@ -48,6 +50,7 @@ public class SittingsController : ControllerBase
         _ai = ai;
         _logger = logger;
         _notifications = notifications;
+        _audit = audit;
     }
 
     private string? GetUserId() => _users.GetUserId(User);
@@ -125,6 +128,7 @@ public class SittingsController : ControllerBase
         };
         _db.Sittings.Add(s);
         await _db.SaveChangesAsync();
+        try { await _audit.LogAsync("sitting.create", $"Sitting:{s.Id}", new { data = s.Data, titolo = s.Titolo }); } catch { }
         return Ok(ToDetail(s));
     }
 
@@ -137,6 +141,7 @@ public class SittingsController : ControllerBase
         if (s == null) return NotFound();
         _db.Sittings.Remove(s);
         await _db.SaveChangesAsync();
+        try { await _audit.LogAsync("sitting.delete", $"Sitting:{id}"); } catch { }
         return NoContent();
     }
 
@@ -176,6 +181,7 @@ public class SittingsController : ControllerBase
             catch (Exception ex) { _logger.LogError(ex, "Errore notifica assegnazione ODG userId={UserId}", aid); }
         }
 
+        try { await _audit.LogAsync("agenda.add", $"AgendaItem:{item.Id}"); } catch { }
         return Ok(ToItemDto(item));
     }
 
@@ -232,6 +238,7 @@ public class SittingsController : ControllerBase
             catch (Exception ex) { _logger.LogError(ex, "Errore notifica decisione cambiata agendaItemId={ItemId}", item.Id); }
         }
 
+        try { await _audit.LogAsync("agenda.update", $"AgendaItem:{item.Id}", new { decisione = dto.Decisione }); } catch { }
         return Ok(ToItemDto(item));
     }
 
@@ -246,6 +253,7 @@ public class SittingsController : ControllerBase
         if (item == null || item.Sitting == null || item.Sitting.CreatedById != uid) return NotFound();
         _db.AgendaItems.Remove(item);
         await _db.SaveChangesAsync();
+        try { await _audit.LogAsync("agenda.delete", $"AgendaItem:{itemId}"); } catch { }
         return NoContent();
     }
 
@@ -309,6 +317,7 @@ public class SittingsController : ControllerBase
         try { await _notifications.NotifyNewDocumentOnAgendaAsync(item.SittingId, item.Id, originalSafe); }
         catch (Exception ex) { _logger.LogError(ex, "Errore notifica nuovo documento ODG agendaItemId={ItemId}", item.Id); }
 
+        try { await _audit.LogAsync("agenda.document.upload", $"AgendaItem:{item.Id}", new { fileName = originalSafe }); } catch { }
         return Ok(ToItemDto(item));
     }
 
@@ -331,6 +340,7 @@ public class SittingsController : ControllerBase
 
         item.Status = dto.Status;
         await _db.SaveChangesAsync();
+        try { await _audit.LogAsync("agenda.status.update", $"AgendaItem:{item.Id}", new { status = dto.Status }); } catch { }
         return Ok(ToItemDto(item));
     }
 
@@ -671,6 +681,7 @@ public class SittingsController : ControllerBase
                 }
             }
 
+            try { await _audit.LogAsync("sitting.import-pdf", null, new { agendaItemsParsed = items.Count }, ct); } catch { }
             return Ok(new SittingParsedDto(data, luogo, titolo, items));
         }
         catch (Exception ex) when (ex is not OperationCanceledException)

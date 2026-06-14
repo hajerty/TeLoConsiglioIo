@@ -11,11 +11,13 @@ public class AdminController : ControllerBase
 {
     private readonly IFileEncryptor _fileEncryptor;
     private readonly IWebHostEnvironment _env;
+    private readonly IAuditLogger _audit;
 
-    public AdminController(IFileEncryptor fileEncryptor, IWebHostEnvironment env)
+    public AdminController(IFileEncryptor fileEncryptor, IWebHostEnvironment env, IAuditLogger audit)
     {
         _fileEncryptor = fileEncryptor;
         _env = env;
+        _audit = audit;
     }
 
     /// <summary>
@@ -23,7 +25,7 @@ public class AdminController : ControllerBase
     /// Scansiona le directory uploads e conta file cifrati vs in chiaro.
     /// </summary>
     [HttpGet("encryption-status")]
-    public IActionResult GetEncryptionStatus()
+    public async Task<IActionResult> GetEncryptionStatus()
     {
         var uploadsRoot = Path.Combine(_env.ContentRootPath, "uploads");
         var subDirs = new[] { "programs", "documents", "act-attachments", "agenda-documents" };
@@ -46,6 +48,7 @@ public class AdminController : ControllerBase
             }
         }
 
+        try { await _audit.LogAsync("admin.encryption-status.view"); } catch { }
         return Ok(new
         {
             enabled = _fileEncryptor.IsEnabled,

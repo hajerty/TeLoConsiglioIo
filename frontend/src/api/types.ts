@@ -260,3 +260,23 @@ export interface DocumentSuggestion {
   documentName: string;
   score: number;
 }
+
+// --- PDF IMPORT ---
+export interface ParsedAgendaItem {
+  ordine: number;
+  descrizione: string;
+}
+
+export interface SittingParsed {
+  data: string | null;
+  luogo: string;
+  titolo: string;
+  agendaItems: ParsedAgendaItem[];
+}
+
+// --- INVITATION WITH EMAIL STATUS ---
+export interface InvitationCreated {
+  token: string;
+  url: string;
+  emailSent: boolean;
+}

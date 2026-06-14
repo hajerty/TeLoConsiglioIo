@@ -14,6 +14,7 @@ import type {
   DocumentSuggestion,
   ElectoralProgram,
   Invitation,
+  InvitationCreated,
   InvitationPublic,
   PartyManifest,
   PartySummary,
@@ -21,6 +22,7 @@ import type {
   ProvidersDto,
   SittingDetail,
   SittingListItem,
+  SittingParsed,
   SittingsQueryParams,
   SuggestedRef,
   User,
@@ -203,13 +205,22 @@ export const sittingsApi = {
     api
       .post<AgendaItem>(`/api/sittings/agenda/${itemId}/clone-document`, { sourceAgendaItemId })
       .then((r) => r.data),
+  importPdf: (file: File): Promise<SittingParsed> => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return api
+      .post<SittingParsed>('/api/sittings/import-pdf', fd, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      })
+      .then((r) => r.data);
+  },
 };
 
 // --- INVITATIONS ---
 export const invitationsApi = {
   list: () => api.get<Invitation[]>('/api/invitations').then((r) => r.data),
   create: (req: { nome: string; cognome: string; email: string; gruppo?: string; comune?: string }) =>
-    api.post<{ token: string; url: string }>('/api/invitations', req).then((r) => r.data),
+    api.post<InvitationCreated>('/api/invitations', req).then((r) => r.data),
   getPublic: (token: string) =>
     api.get<InvitationPublic>(`/api/invitations/${token}`).then((r) => r.data),
   remove: (id: string) => api.delete(`/api/invitations/${id}`).then((r) => r.data),

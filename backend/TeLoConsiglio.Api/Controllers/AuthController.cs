@@ -1,3 +1,5 @@
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -157,6 +159,123 @@ public class AuthController : ControllerBase
         var res = await _users.ChangePasswordAsync(user, dto.CurrentPassword, dto.NewPassword);
         if (!res.Succeeded) return BadRequest(new { errors = res.Errors.Select(e => e.Description) });
         return NoContent();
+    }
+
+    [Authorize]
+    [HttpPut("me/complete-profile")]
+    public async Task<ActionResult<UserDto>> CompleteProfile([FromBody] CompleteProfileDto dto)
+    {
+        var user = await _users.GetUserAsync(User);
+        if (user == null) return Unauthorized();
+
+        user.Comune = dto.Comune;
+        user.Partito = dto.Partito;
+        user.Gruppo = dto.Gruppo;
+
+        var res = await _users.UpdateAsync(user);
+        if (!res.Succeeded) return BadRequest(new { errors = res.Errors.Select(e => e.Description) });
+
+        var roles = await _users.GetRolesAsync(user);
+        return Ok(new UserDto(user.Id, user.Email ?? "", user.FullName, user.Comune, user.Partito, user.Gruppo, roles));
+    }
+
+    // ---- OAuth external login ----
+
+    private static readonly Dictionary<string, string> ProviderSchemeMap = new(StringComparer.OrdinalIgnoreCase)
+    {
+        { "google", "Google" },
+        { "microsoft", "Microsoft" }
+    };
+
+    [HttpGet("external/{provider}")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ExternalChallenge(string provider, [FromQuery] string? returnUrl = null)
+    {
+        if (!ProviderSchemeMap.TryGetValue(provider, out var schemeName))
+            return BadRequest(new { error = $"Provider '{provider}' non supportato. Valori validi: google, microsoft." });
+
+        var schemeProvider = HttpContext.RequestServices.GetRequiredService<IAuthenticationSchemeProvider>();
+        var scheme = await schemeProvider.GetSchemeAsync(schemeName);
+        if (scheme == null)
+            return StatusCode(503, new { error = $"Il provider '{provider}' non e' configurato. Impostare le variabili d'ambiente {provider.ToUpper()}_CLIENT_ID e {provider.ToUpper()}_CLIENT_SECRET." });
+
+        var safeReturnUrl = Uri.EscapeDataString(returnUrl ?? "");
+        var callbackUrl = Url.Action("ExternalFinalize", "Auth", new { provider = provider.ToLower(), returnUrl = safeReturnUrl }, Request.Scheme)!;
+
+        var props = new AuthenticationProperties { RedirectUri = callbackUrl };
+        return Challenge(props, schemeName);
+    }
+
+    [HttpGet("external/{provider}/finalize")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ExternalFinalize(string provider, [FromQuery] string? returnUrl = null)
+    {
+        var frontendUrl = _config["Frontend__Url"] ?? _config["FRONTEND_URL"] ?? "http://localhost:5173";
+        var errorRedirect = $"{frontendUrl}/login?oauthError=external_auth_failed";
+
+        var result = await HttpContext.AuthenticateAsync("ExternalAuthCookie");
+        if (!result.Succeeded || result.Principal == null)
+            return Redirect(errorRedirect);
+
+        var providerKey = result.Principal.FindFirstValue(ClaimTypes.NameIdentifier);
+        var email = result.Principal.FindFirstValue(ClaimTypes.Email)
+            ?? result.Principal.FindFirstValue(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Email);
+        var name = result.Principal.FindFirstValue(ClaimTypes.Name)
+            ?? $"{result.Principal.FindFirstValue(ClaimTypes.GivenName)} {result.Principal.FindFirstValue(ClaimTypes.Surname)}".Trim();
+
+        if (string.IsNullOrWhiteSpace(providerKey) || string.IsNullOrWhiteSpace(email))
+            return Redirect(errorRedirect);
+
+        if (!ProviderSchemeMap.TryGetValue(provider, out var schemeName))
+            return Redirect(errorRedirect);
+
+        // Clean up the ephemeral OAuth cookie
+        await HttpContext.SignOutAsync("ExternalAuthCookie");
+
+        // 1. Cerca login esterno esistente
+        var user = await _users.FindByLoginAsync(schemeName, providerKey);
+
+        if (user == null)
+        {
+            // 2. Cerca per email
+            user = await _users.FindByEmailAsync(email);
+            if (user != null)
+            {
+                // Collega il login esterno all'account esistente
+                var linkResult = await _users.AddLoginAsync(user, new UserLoginInfo(schemeName, providerKey, schemeName));
+                if (!linkResult.Succeeded)
+                    return Redirect(errorRedirect);
+            }
+            else
+            {
+                // 3. Crea nuovo utente
+                user = new ApplicationUser
+                {
+                    UserName = email,
+                    Email = email,
+                    EmailConfirmed = true,
+                    FullName = string.IsNullOrWhiteSpace(name) ? email : name
+                };
+                var createResult = await _users.CreateAsync(user);
+                if (!createResult.Succeeded)
+                    return Redirect(errorRedirect);
+
+                await _users.AddToRoleAsync(user, Roles.Consigliere);
+
+                var loginResult = await _users.AddLoginAsync(user, new UserLoginInfo(schemeName, providerKey, schemeName));
+                if (!loginResult.Succeeded)
+                    return Redirect(errorRedirect);
+            }
+        }
+
+        var authResp = await BuildAuthResponse(user);
+        var needsProfile = string.IsNullOrWhiteSpace(user.Comune) || string.IsNullOrWhiteSpace(user.Partito);
+
+        var at = Uri.EscapeDataString(authResp.AccessToken);
+        var rt = Uri.EscapeDataString(authResp.RefreshToken);
+        var np = needsProfile ? "true" : "false";
+
+        return Redirect($"{frontendUrl}/oauth-callback?at={at}&rt={rt}&needsProfile={np}");
     }
 
     private async Task<AuthResponseDto> BuildAuthResponse(ApplicationUser user, RefreshToken? replacedTokenToLink = null)

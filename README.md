@@ -101,6 +101,9 @@ Tutte le rotte (eccetto `/api/auth/*` e `/health`) richiedono header `Authorizat
 - `POST /api/auth/login` - login con email/password
 - `POST /api/auth/refresh` - refresh token
 - `GET  /api/auth/me` - utente corrente (espone `comune, partito, gruppo, roles`)
+- `PUT  /api/auth/me/complete-profile` - (auth richiesta) aggiorna `comune`, `partito`, `gruppo`; utile dopo login OAuth se `needsProfile=true`
+- `GET  /api/auth/external/{provider}` - avvia flusso OAuth (`provider`: `google` o `microsoft`); query param opzionale `returnUrl`; risponde 503 se il provider non e' configurato
+- `GET  /api/auth/external/{provider}/finalize` - callback OAuth interno; dopo autenticazione redirige a `{Frontend__Url}/oauth-callback?at=<token>&rt=<refreshToken>&needsProfile=<true|false>`
 
 ### Partiti (manifesti)
 
@@ -388,6 +391,59 @@ Risposta:
   "filesPlain": 5
 }
 ```
+
+## OAuth Google
+
+### Configurazione
+
+1. Vai su [Google Cloud Console](https://console.cloud.google.com/) → **APIs & Services** → **Credentials**
+2. **Create Credentials** → **OAuth 2.0 Client IDs** → Application type: **Web application**
+3. In **Authorized redirect URIs** aggiungi:
+   - Sviluppo: `http://localhost:5000/api/auth/external/google/callback`
+   - Produzione: `https://<tua-api-render>.onrender.com/api/auth/external/google/callback`
+4. Copia **Client ID** e **Client Secret**
+5. Imposta le variabili d'ambiente:
+   ```
+   GOOGLE_CLIENT_ID=<client-id>
+   GOOGLE_CLIENT_SECRET=<client-secret>
+   ```
+
+### Flusso utente
+
+1. Il frontend reindirizza l'utente a `GET /api/auth/external/google`
+2. Il backend avvia il challenge OAuth verso Google
+3. Dopo il consenso Google richiama `/api/auth/external/google/callback` (gestito internamente da ASP.NET)
+4. Il backend finalizza in `/api/auth/external/google/finalize`: trova/crea l'utente, genera access + refresh token
+5. Redirect a `{Frontend__Url}/oauth-callback?at=<accessToken>&rt=<refreshToken>&needsProfile=<true|false>`
+6. Se `needsProfile=true`, il frontend mostra il form per impostare `comune` e `partito` e chiama `PUT /api/auth/me/complete-profile`
+
+### Comportamento senza configurazione
+
+Se `GOOGLE_CLIENT_ID` o `GOOGLE_CLIENT_SECRET` non sono impostati, `GET /api/auth/external/google` risponde `503 Service Unavailable` con messaggio chiaro.
+
+## OAuth Microsoft
+
+### Configurazione
+
+1. Vai su [Azure Portal](https://portal.azure.com/) → **Azure Active Directory** → **App registrations** → **New registration**
+2. **Redirect URI** (tipo Web):
+   - Sviluppo: `http://localhost:5000/api/auth/external/microsoft/callback`
+   - Produzione: `https://<tua-api-render>.onrender.com/api/auth/external/microsoft/callback`
+3. Dopo la registrazione, vai su **Certificates & secrets** → **New client secret**
+4. Copia **Application (client) ID** e il secret
+5. Imposta le variabili d'ambiente:
+   ```
+   MICROSOFT_CLIENT_ID=<application-id>
+   MICROSOFT_CLIENT_SECRET=<client-secret>
+   ```
+
+### Flusso utente
+
+Identico al flusso Google, con endpoint `/api/auth/external/microsoft` e `/api/auth/external/microsoft/finalize`.
+
+### Comportamento senza configurazione
+
+Se `MICROSOFT_CLIENT_ID` o `MICROSOFT_CLIENT_SECRET` non sono impostati, `GET /api/auth/external/microsoft` risponde `503 Service Unavailable`.
 
 ## Note di sicurezza
 

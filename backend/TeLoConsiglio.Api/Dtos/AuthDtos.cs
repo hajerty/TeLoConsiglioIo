@@ -18,3 +18,7 @@ public record UserDto(string Id, string Email, string FullName, string? Comune, 
 public record UserPickDto(string Id, string DisplayName);
 public record ProvidersDto(bool Email, bool Google, bool Microsoft);
 public record ChangePasswordDto([Required] string CurrentPassword, [Required, MinLength(8)] string NewPassword);
+public record CompleteProfileDto(
+    [Required, MaxLength(200)] string Comune,
+    [Required, MaxLength(100)] string Partito,
+    [MaxLength(200)] string? Gruppo);

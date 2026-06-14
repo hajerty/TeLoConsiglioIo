@@ -95,10 +95,13 @@ var googleClientId = builder.Configuration["GOOGLE_CLIENT_ID"];
 var googleClientSecret = builder.Configuration["GOOGLE_CLIENT_SECRET"];
 if (!string.IsNullOrWhiteSpace(googleClientId) && !string.IsNullOrWhiteSpace(googleClientSecret))
 {
-    authBuilder.AddGoogle(opt =>
+    authBuilder.AddGoogle("Google", opt =>
     {
         opt.ClientId = googleClientId;
         opt.ClientSecret = googleClientSecret;
+        opt.CallbackPath = "/api/auth/external/google/callback";
+        opt.SignInScheme = "ExternalAuthCookie";
+        opt.SaveTokens = false;
     });
 }
 
@@ -106,12 +109,27 @@ var msClientId = builder.Configuration["MICROSOFT_CLIENT_ID"];
 var msClientSecret = builder.Configuration["MICROSOFT_CLIENT_SECRET"];
 if (!string.IsNullOrWhiteSpace(msClientId) && !string.IsNullOrWhiteSpace(msClientSecret))
 {
-    authBuilder.AddMicrosoftAccount(opt =>
+    authBuilder.AddMicrosoftAccount("Microsoft", opt =>
     {
         opt.ClientId = msClientId;
         opt.ClientSecret = msClientSecret;
+        opt.CallbackPath = "/api/auth/external/microsoft/callback";
+        opt.SignInScheme = "ExternalAuthCookie";
+        opt.SaveTokens = false;
     });
 }
+
+// Ephemeral cookie for OAuth round-trip only (not used for API auth)
+authBuilder.AddCookie("ExternalAuthCookie", opt =>
+{
+    opt.Cookie.Name = "tc.ext";
+    opt.Cookie.HttpOnly = true;
+    opt.Cookie.SameSite = SameSiteMode.Lax;
+    opt.Cookie.SecurePolicy = builder.Environment.IsProduction()
+        ? CookieSecurePolicy.Always
+        : CookieSecurePolicy.SameAsRequest;
+    opt.ExpireTimeSpan = TimeSpan.FromMinutes(10);
+});
 
 builder.Services.AddAuthorization(opt =>
 {

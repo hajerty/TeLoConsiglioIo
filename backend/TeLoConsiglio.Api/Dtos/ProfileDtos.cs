@@ -16,3 +16,7 @@ public record PoliticalProfileUpdateDto(
 );
 
 public record ElectoralProgramDto(Guid Id, string OriginalName, DateTime UploadedAt);
+
+public record NotificationPreferencesDto(bool EmailNotificationsEnabled);
+
+public record NotificationPreferencesUpdateDto(bool EmailNotificationsEnabled);

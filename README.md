@@ -119,6 +119,11 @@ Tutte le rotte (eccetto `/api/auth/*` e `/health`) richiedono header `Authorizat
 - `POST /api/profile/programs` (multipart upload)
 - `DELETE /api/profile/programs/{id}`
 
+### Preferenze notifiche email
+
+- `GET  /api/profile/notifications` — restituisce `{ emailNotificationsEnabled: bool }`
+- `PUT  /api/profile/notifications` — body `{ emailNotificationsEnabled: bool }` — aggiorna e ritorna lo stato
+
 ### Documenti
 
 - `GET  /api/documents`
@@ -198,10 +203,18 @@ Tutte le email vengono loggate su stdout (To, Subject, body troncato a 500 char 
 ### Email inviate
 
 - **Creazione invito** (`POST /api/invitations`): all'utente invitato viene inviata un'email con link di registrazione. La risposta include `emailSent: true/false` per UX (se l'invio fallisce, l'invito e' comunque creato).
+- **Assegnazione a punto ODG** (`POST /api/sittings/{id}/agenda` e `PUT /api/sittings/agenda/{itemId}`): notifica l'utente appena aggiunto come responsabile. Solo i nuovi assegnati ricevono l'email (non quelli gia' esistenti in caso di modifica).
+- **Decisione cambiata su punto ODG** (`PUT /api/sittings/agenda/{itemId}`): notifica tutti gli assegnati al punto quando il campo `Decisione` cambia valore.
+- **Nuovo documento su punto ODG** (`POST /api/sittings/agenda/{itemId}/document`): notifica tutti gli assegnati al punto quando viene caricato un documento.
+- **Atto depositato** (`POST /api/acts` e `PUT /api/acts/{id}`): notifica i capogruppo (`Capogruppo` role) dello stesso `Gruppo` dell'autore quando lo stato dell'atto passa a `Depositato`. Se l'autore non ha `Gruppo`, skip.
+
+Tutte le notifiche sono best-effort: un errore SMTP non blocca mai l'azione utente principale (try/catch + log).
+
+L'utente puo' disabilitare le notifiche email tramite `PUT /api/profile/notifications` con `{ emailNotificationsEnabled: false }`.
 
 ### TODO
 
-- Notifiche email su altre azioni (nuova seduta, modifica profilo, ecc.) — da implementare in future release.
+- Notifiche push/in-app (futura release).
 
 ### Usage / Budget AI
 

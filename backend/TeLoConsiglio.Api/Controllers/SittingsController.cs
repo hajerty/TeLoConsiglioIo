@@ -28,6 +28,7 @@ public class SittingsController : ControllerBase
     private readonly IFileEncryptor _fileEncryptor;
     private readonly IAIService _ai;
     private readonly ILogger<SittingsController> _logger;
+    private readonly INotificationService _notifications;
 
     public SittingsController(
         AppDbContext db,
@@ -36,7 +37,8 @@ public class SittingsController : ControllerBase
         IWebHostEnvironment env,
         IFileEncryptor fileEncryptor,
         IAIService ai,
-        ILogger<SittingsController> logger)
+        ILogger<SittingsController> logger,
+        INotificationService notifications)
     {
         _db = db;
         _users = users;
@@ -45,6 +47,7 @@ public class SittingsController : ControllerBase
         _fileEncryptor = fileEncryptor;
         _ai = ai;
         _logger = logger;
+        _notifications = notifications;
     }
 
     private string? GetUserId() => _users.GetUserId(User);
@@ -154,15 +157,25 @@ public class SittingsController : ControllerBase
             ActId = dto.ActId
         };
         _db.AgendaItems.Add(item);
+        var newAssigneeIds = new List<string>();
         if (dto.AssignedUserIds != null)
         {
             foreach (var aid in dto.AssignedUserIds.Distinct())
             {
                 item.Assignments.Add(new AgendaItemAssignment { AgendaItemId = item.Id, UserId = aid });
+                newAssigneeIds.Add(aid);
             }
         }
         await _db.SaveChangesAsync();
         await _db.Entry(item).Collection(i => i.Assignments).Query().Include(a => a.User).LoadAsync();
+
+        // Notifiche best-effort: non far fallire la richiesta se l'email fallisce
+        foreach (var aid in newAssigneeIds)
+        {
+            try { await _notifications.NotifyAssignedToAgendaAsync(aid, s.Id, item.Id); }
+            catch (Exception ex) { _logger.LogError(ex, "Errore notifica assegnazione ODG userId={UserId}", aid); }
+        }
+
         return Ok(ToItemDto(item));
     }
 
@@ -178,19 +191,47 @@ public class SittingsController : ControllerBase
         if (item == null || item.Sitting == null || item.Sitting.CreatedById != uid) return NotFound();
         item.Ordine = dto.Ordine;
         item.Descrizione = dto.Descrizione;
+
+        // Cattura vecchia decisione prima di salvarla
+        var oldDecisione = item.Decisione;
         item.Decisione = dto.Decisione;
+
         item.Motivazione = dto.Motivazione ?? "";
         item.ActId = dto.ActId;
+
+        var newAssigneeIds = new List<string>();
         if (dto.AssignedUserIds != null)
         {
+            var existingIds = item.Assignments.Select(a => a.UserId).ToHashSet();
             _db.AgendaItemAssignments.RemoveRange(item.Assignments);
             foreach (var aid in dto.AssignedUserIds.Distinct())
             {
                 item.Assignments.Add(new AgendaItemAssignment { AgendaItemId = item.Id, UserId = aid });
+                if (!existingIds.Contains(aid))
+                    newAssigneeIds.Add(aid);
             }
         }
         await _db.SaveChangesAsync();
         await _db.Entry(item).Collection(i => i.Assignments).Query().Include(a => a.User).LoadAsync();
+
+        // Notifiche best-effort: non far fallire la richiesta se l'email fallisce
+        foreach (var aid in newAssigneeIds)
+        {
+            try { await _notifications.NotifyAssignedToAgendaAsync(aid, item.SittingId, item.Id); }
+            catch (Exception ex) { _logger.LogError(ex, "Errore notifica assegnazione ODG userId={UserId}", aid); }
+        }
+
+        if (dto.Decisione != oldDecisione)
+        {
+            try
+            {
+                await _notifications.NotifyAgendaDecisionChangedAsync(
+                    item.SittingId, item.Id,
+                    oldDecisione.ToString(), dto.Decisione.ToString());
+            }
+            catch (Exception ex) { _logger.LogError(ex, "Errore notifica decisione cambiata agendaItemId={ItemId}", item.Id); }
+        }
+
         return Ok(ToItemDto(item));
     }
 
@@ -263,6 +304,11 @@ public class SittingsController : ControllerBase
         await _db.SaveChangesAsync();
 
         await _db.Entry(item).Collection(i => i.Assignments).Query().Include(a => a.User).LoadAsync();
+
+        // Notifica best-effort
+        try { await _notifications.NotifyNewDocumentOnAgendaAsync(item.SittingId, item.Id, originalSafe); }
+        catch (Exception ex) { _logger.LogError(ex, "Errore notifica nuovo documento ODG agendaItemId={ItemId}", item.Id); }
+
         return Ok(ToItemDto(item));
     }
 

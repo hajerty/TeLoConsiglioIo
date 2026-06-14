@@ -28,6 +28,7 @@ public class ActsController : ControllerBase
     private readonly IDocumentTextExtractor _extractor;
     private readonly IWebHostEnvironment _env;
     private readonly IFileEncryptor _fileEncryptor;
+    private readonly INotificationService _notifications;
 
     public ActsController(
         AppDbContext db,
@@ -36,9 +37,10 @@ public class ActsController : ControllerBase
         ILogger<ActsController> logger,
         IDocumentTextExtractor extractor,
         IWebHostEnvironment env,
-        IFileEncryptor fileEncryptor)
+        IFileEncryptor fileEncryptor,
+        INotificationService notifications)
     {
-        _db = db; _users = users; _ai = ai; _logger = logger; _extractor = extractor; _env = env; _fileEncryptor = fileEncryptor;
+        _db = db; _users = users; _ai = ai; _logger = logger; _extractor = extractor; _env = env; _fileEncryptor = fileEncryptor; _notifications = notifications;
     }
 
     private string GetUserId() => _users.GetUserId(User)!;
@@ -88,6 +90,14 @@ public class ActsController : ControllerBase
         };
         _db.Acts.Add(a);
         await _db.SaveChangesAsync();
+
+        // Notifica se l'atto viene creato già in stato Depositato
+        if (a.Status == ActStatus.Depositato)
+        {
+            try { await _notifications.NotifyActDepositedAsync(a.Id); }
+            catch (Exception ex) { _logger.LogError(ex, "Errore notifica atto depositato actId={ActId}", a.Id); }
+        }
+
         return Ok(ToDetail(a));
     }
 
@@ -101,6 +111,7 @@ public class ActsController : ControllerBase
         {
             _db.ActRevisions.Add(new ActRevision { ActId = a.Id, BodyMd = a.BodyMd, AuthorId = uid });
         }
+        var oldStatus = a.Status;
         a.Titolo = dto.Titolo;
         a.Oggetto = dto.Oggetto;
         a.ContextNotes = dto.ContextNotes;
@@ -110,6 +121,14 @@ public class ActsController : ControllerBase
         a.ReferenceNotesMd = dto.ReferenceNotesMd;
         a.UpdatedAt = DateTime.UtcNow;
         await _db.SaveChangesAsync();
+
+        // Notifica se lo stato transita verso Depositato
+        if (oldStatus != ActStatus.Depositato && dto.Status == ActStatus.Depositato)
+        {
+            try { await _notifications.NotifyActDepositedAsync(a.Id); }
+            catch (Exception ex) { _logger.LogError(ex, "Errore notifica atto depositato actId={ActId}", a.Id); }
+        }
+
         return Ok(ToDetail(a));
     }
 

@@ -138,6 +138,30 @@ public class ProfileController : ControllerBase
         return Ok(new PoliticalProfileDto(prof.LineaPoliticaMd, argomenti, temi, prof.LineaPoliticaSource));
     }
 
+    // ── Preferenze notifiche ────────────────────────────────────────────────────
+
+    [HttpGet("notifications")]
+    public async Task<ActionResult<NotificationPreferencesDto>> GetNotifications()
+    {
+        var uid = GetUserId();
+        var user = await _users.FindByIdAsync(uid);
+        if (user == null) return Unauthorized();
+        return Ok(new NotificationPreferencesDto(user.EmailNotificationsEnabled));
+    }
+
+    [HttpPut("notifications")]
+    public async Task<ActionResult<NotificationPreferencesDto>> UpdateNotifications([FromBody] NotificationPreferencesUpdateDto dto)
+    {
+        var uid = GetUserId();
+        var user = await _users.FindByIdAsync(uid);
+        if (user == null) return Unauthorized();
+        user.EmailNotificationsEnabled = dto.EmailNotificationsEnabled;
+        await _users.UpdateAsync(user);
+        return Ok(new NotificationPreferencesDto(user.EmailNotificationsEnabled));
+    }
+
+    // ── Programmi elettorali ────────────────────────────────────────────────────
+
     [HttpGet("programs")]
     public async Task<ActionResult<List<ElectoralProgramDto>>> ListPrograms()
     {

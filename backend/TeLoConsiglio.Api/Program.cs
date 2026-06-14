@@ -160,6 +160,9 @@ else
     builder.Services.AddSingleton<IEmailSender, ConsoleEmailSender>();
 }
 
+// ----- Notification service -----
+builder.Services.AddScoped<INotificationService, EmailNotificationService>();
+
 // ----- API -----
 builder.Services.AddControllers().AddJsonOptions(opt =>
 {

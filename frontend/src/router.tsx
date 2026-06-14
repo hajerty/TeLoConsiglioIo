@@ -15,6 +15,7 @@ import Archivio from './pages/Archivio';
 import Sedute from './pages/Sedute';
 import SedutaDettaglio from './pages/SedutaDettaglio';
 import GestioneConsiglieri from './pages/GestioneConsiglieri';
+import AdminAuditLog from './pages/AdminAuditLog';
 
 export const router = createBrowserRouter([
   { path: '/login', element: <Login /> },
@@ -39,6 +40,12 @@ export const router = createBrowserRouter([
             element: <RoleProtectedRoute allowedRoles={['Admin', 'Capogruppo', 'Vice']} redirectTo="/" />,
             children: [
               { path: '/consiglieri', element: <GestioneConsiglieri /> },
+            ],
+          },
+          {
+            element: <RoleProtectedRoute allowedRoles={['Admin']} redirectTo="/" />,
+            children: [
+              { path: '/admin/audit-log', element: <AdminAuditLog /> },
             ],
           },
         ],

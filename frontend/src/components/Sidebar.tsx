@@ -8,6 +8,7 @@ import {
   Archive,
   CalendarDays,
   UserPlus,
+  ShieldCheck,
   X,
 } from 'lucide-react';
 import { useAuthStore } from '../auth/store';
@@ -31,10 +32,13 @@ interface SidebarProps {
 export function Sidebar({ isOpen, onClose }: SidebarProps) {
   const user = useAuthStore((s) => s.user);
   const canManage = user?.roles?.some((r) => ADMIN_ROLES.includes(r)) ?? false;
+  const isAdmin = user?.roles?.includes('Admin') ?? false;
 
-  const items = canManage
-    ? [...baseItems, { to: '/consiglieri', label: 'Gestione consiglieri', Icon: UserPlus }]
-    : baseItems;
+  const items = [
+    ...baseItems,
+    ...(canManage ? [{ to: '/consiglieri', label: 'Gestione consiglieri', Icon: UserPlus }] : []),
+    ...(isAdmin ? [{ to: '/admin/audit-log', label: 'Audit log', Icon: ShieldCheck }] : []),
+  ];
 
   // Close drawer on desktop resize
   useEffect(() => {

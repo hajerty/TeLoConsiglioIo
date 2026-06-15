@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { dashboardApi } from '../api/endpoints';
 import { useAuthStore } from '../auth/store';
+import { OnboardingTour } from '../components/OnboardingTour';
 
 const ADMIN_ROLES = ['Admin', 'Capogruppo', 'Vice'];
 
@@ -242,6 +243,7 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+      <OnboardingTour />
     </div>
   );
 }

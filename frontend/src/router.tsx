@@ -16,8 +16,11 @@ import Sedute from './pages/Sedute';
 import SedutaDettaglio from './pages/SedutaDettaglio';
 import GestioneConsiglieri from './pages/GestioneConsiglieri';
 import AdminAuditLog from './pages/AdminAuditLog';
+import Tutorial from './pages/Tutorial';
+import Landing from './pages/Landing';
 
 export const router = createBrowserRouter([
+  { path: '/landing', element: <Landing /> },
   { path: '/login', element: <Login /> },
   { path: '/register', element: <Register /> },
   { path: '/oauth-callback', element: <OAuthCallback /> },
@@ -36,6 +39,7 @@ export const router = createBrowserRouter([
           { path: '/archivio', element: <Archivio /> },
           { path: '/sedute', element: <Sedute /> },
           { path: '/sedute/:id', element: <SedutaDettaglio /> },
+          { path: '/tutorial', element: <Tutorial /> },
           {
             element: <RoleProtectedRoute allowedRoles={['Admin', 'Capogruppo', 'Vice']} redirectTo="/" />,
             children: [

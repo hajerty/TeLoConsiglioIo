@@ -9,6 +9,7 @@ import {
   CalendarDays,
   UserPlus,
   ShieldCheck,
+  HelpCircle,
   X,
 } from 'lucide-react';
 import { useAuthStore } from '../auth/store';
@@ -22,6 +23,7 @@ const baseItems = [
   { to: '/atti', label: 'Atti', Icon: ScrollText },
   { to: '/archivio', label: 'Archivio', Icon: Archive },
   { to: '/sedute', label: 'Sedute', Icon: CalendarDays },
+  { to: '/tutorial', label: 'Tutorial', Icon: HelpCircle },
 ];
 
 interface SidebarProps {
